@@ -14,6 +14,7 @@ type Option struct {
 	Device    string        `val:"any" usage:"Capture packet from network device. If is any, capture all interface traffics"`
 	Ip        string        `usage:"Filter by ip, if either source or target ip is matched, the packet will be processed"`
 	Port      uint          `usage:"Filter by port, if either source or target port is matched, the packet will be processed."`
+	Chan      uint          `val:"10240" usage:"Channel size to buffer tcp packets."`
 	Host      string        `usage:"Filter by request host, using wildcard match(*, ?)"`
 	Uri       string        `usage:"Filter by request url path, using wildcard match(*, ?)"`
 	PrintResp bool          `usage:"Print response or not"`

@@ -139,6 +139,7 @@ func run(option *Option) error {
 		printer: newPrinter(option.Output),
 	}
 	var assembler = newTCPAssembler(handler)
+	assembler.chanSize = option.Chan
 	assembler.filterIP = option.Ip
 	assembler.filterPort = uint16(option.Port)
 	var ticker = time.Tick(time.Second * 10)

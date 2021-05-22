@@ -26,6 +26,7 @@ type TCPAssembler struct {
 	handler     ConnectionHandler
 	filterIP    string
 	filterPort  uint16
+	chanSize    uint
 }
 
 func newTCPAssembler(handler ConnectionHandler) *TCPAssembler {
@@ -70,7 +71,7 @@ func (r *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bo
 
 	c := r.connections[key]
 	if c == nil && init {
-		c = newTCPConnection(key, src)
+		c = newTCPConnection(key, src, r.chanSize)
 		r.connections[key] = c
 		r.handler.handle(src, dst, c)
 	}
@@ -137,10 +138,10 @@ func (p Endpoint) equals(v Endpoint) bool { return p.ip == v.ip && p.port == v.p
 func (p Endpoint) String() string         { return p.ip + ":" + strconv.Itoa(int(p.port)) }
 
 // create tcp connection, by the first tcp packet. this packet should from client to server
-func newTCPConnection(key string, src Endpoint) *TCPConnection {
+func newTCPConnection(key string, src Endpoint, chanSize uint) *TCPConnection {
 	return &TCPConnection{
-		requestStream:  newNetworkStream(src, true),
-		responseStream: newNetworkStream(src, false),
+		requestStream:  newNetworkStream(src, true, chanSize),
+		responseStream: newNetworkStream(src, false, chanSize),
 		key:            key,
 	}
 }
@@ -217,10 +218,10 @@ type NetworkStream struct {
 	LastUUID  []byte
 }
 
-func newNetworkStream(src Endpoint, isRequest bool) *NetworkStream {
+func newNetworkStream(src Endpoint, isRequest bool, chanSize uint) *NetworkStream {
 	return &NetworkStream{
 		window:    newReceiveWindow(64),
-		c:         make(chan *layers.TCP, 1024),
+		c:         make(chan *layers.TCP, chanSize),
 		src:       src,
 		isRequest: isRequest,
 	}
