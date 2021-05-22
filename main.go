@@ -99,9 +99,7 @@ func run(option *Option) error {
 
 	var packets chan gopacket.Packet
 	if option.File != "" {
-		//TODO: read file stdin
-		// read from pcap file
-		var handle, err = pcap.OpenOffline(option.File)
+		var handle, err = pcap.OpenOffline(option.File) // read from pcap file
 		if err != nil {
 			return fmt.Errorf("open file %v error: %w", option.File, err)
 		}

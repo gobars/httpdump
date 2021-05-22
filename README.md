@@ -1,8 +1,10 @@
 # httpdump
 
-Parse and display http traffic from network device or pcap file. This is a go version of origin pcap-parser, thanks to gopacket project, this tool has simpler code base and is more efficient.
+Parse and display http traffic from network device or pcap file. This is a go version of origin pcap-parser, thanks to
+gopacket project, this tool has simpler code base and is more efficient.
 
-For original python implementation, [refer to httpcap on pypi](https://pypi.org/project/httpcap/).
+Forked from [httpdump](https://github.com/hsiafan/httpdump), For original python
+implementation, [refer to httpcap on pypi](https://pypi.org/project/httpcap/).
 
 ## Install & Requirement
 
@@ -59,8 +61,54 @@ Usage of httpdump:
 A simple capture:
 
 ```
-$ httpdump
+🕙[2021-05-22 18:05:03.891] ❯ sudo httpdump -device lo0 -port 5003 -print-resp -level all
 
+### REQUEST  ::1:59982 ea4e138b00000001b295aafb -> ::1:5003 2021-05-22T18:05:16.065566+08:00
+POST /echo/123 HTTP/1.1
+Content-Length: 18
+Host: localhost:5003
+User-Agent: HTTPie/2.4.0
+Accept-Encoding: gzip, deflate
+Accept: application/json, */*;q=0.5
+Connection: keep-alive
+Content-Type: application/json
+
+{
+    "name": "bingoo"
+}
+
+
+### RESPONSE  ::1:59982 ea4e138b00000001b295aafb <- ::1:5003 2021-05-22T18:05:16.065566+08:00 - 2021-05-22T18:05:16.065566+08:00 = 0s
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Sat, 22 May 2021 10:05:16 GMT
+Content-Length: 474
+
+{
+    "headers": {
+        "Accept": "application/json, */*;q=0.5",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
+        "Content-Length": "18",
+        "Content-Type": "application/json",
+        "User-Agent": "HTTPie/2.4.0"
+    },
+    "host": "localhost:5003",
+    "method": "POST",
+    "payload": {
+        "name": "bingoo"
+    },
+    "proto": "HTTP/1.1",
+    "remoteAddr": "[::1]:59982",
+    "requestUri": "/echo/123",
+    "router": "/echo/:id",
+    "routerParams": {
+        "id": "123"
+    },
+    "timeGo": "2021-05-22 18:05:16.0625",
+    "timeTo": "2021-05-22 18:05:16.0625",
+    "url": "/echo/123"
+}
 ```
 
 More:
