@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/bingoohuang/gg/pkg/flagparse"
@@ -54,11 +58,25 @@ func run(option *Option) error {
 	assembler.filterIP = option.Ip
 	assembler.filterPort = uint16(option.Port)
 
-	loop(packets, assembler, option.Idle)
+	ctx := setupSignalProcess()
+	loop(ctx, packets, assembler, option.Idle)
 
 	assembler.finishAll()
 	printer.finish()
 	return nil
+}
+
+func setupSignalProcess() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	sig := make(chan os.Signal, 1)
+	// syscall.SIGINT: ctl + c, syscall.SIGTERM: kill pid
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sig
+		cancel()
+	}()
+
+	return ctx
 }
 
 func (o *Option) createConnectionHandler(printer *Printer) ConnectionHandler {
@@ -69,7 +87,7 @@ func (o *Option) createConnectionHandler(printer *Printer) ConnectionHandler {
 	return &HTTPConnectionHandler{option: o, printer: printer}
 }
 
-func loop(packets chan gopacket.Packet, assembler *TCPAssembler, idle time.Duration) {
+func loop(ctx context.Context, packets chan gopacket.Packet, assembler *TCPAssembler, idle time.Duration) {
 	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 
@@ -90,6 +108,8 @@ func loop(packets chan gopacket.Packet, assembler *TCPAssembler, idle time.Durat
 		case <-ticker.C:
 			// flush connections that haven't been activity in the idle time
 			assembler.flushOlderThan(time.Now().Add(-idle))
+		case <-ctx.Done():
+			return
 		}
 	}
 }

@@ -5,13 +5,14 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 )
 
 // Printer output parsed http messages
 type Printer struct {
 	queue     chan string
 	writer    io.WriteCloser
-	discarded int
+	discarded uint32
 
 	wg sync.WaitGroup
 }
@@ -33,7 +34,7 @@ func (p *Printer) send(msg string) {
 	select {
 	case p.queue <- msg:
 	default:
-		p.discarded++
+		atomic.AddUint32(&p.discarded, 1)
 	}
 }
 
@@ -53,5 +54,5 @@ func (p *Printer) printBackground() {
 func (p *Printer) finish() {
 	close(p.queue)
 	p.wg.Wait()
-	fmt.Printf("#%d discarded\n", p.discarded)
+	fmt.Printf("#%d discarded\n", atomic.LoadUint32(&p.discarded))
 }
