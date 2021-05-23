@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"os"
 )
@@ -32,11 +31,6 @@ func newPrinter(outputPath string) *Printer {
 }
 
 func (p *Printer) send(msg string) {
-	if len(p.outputQueue) == maxOutputQueueLen {
-		// skip this msg
-		fmt.Fprintln(os.Stderr, "too many messages to output, discard current!")
-		return
-	}
 	p.outputQueue <- msg
 }
 

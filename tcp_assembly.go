@@ -71,7 +71,7 @@ func (r *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bo
 
 	c := r.connections[key]
 	if c == nil && init {
-		c = newTCPConnection(key, src, r.chanSize)
+		c = newTCPConnection(key, src, dst, r.chanSize)
 		r.connections[key] = c
 		r.handler.handle(src, dst, c)
 	}
@@ -120,12 +120,14 @@ type ConnectionHandler interface {
 
 // TCPConnection hold info for one tcp connection
 type TCPConnection struct {
-	requestStream  *NetworkStream // stream from client to server
-	responseStream *NetworkStream // stream from server to client
-	clientID       Endpoint       // the client key(by ip and port)
-	lastTimestamp  time.Time      // timestamp receive last packet
-	isHTTP         bool
-	key            string
+	requestStream    *NetworkStream // stream from client to server
+	responseStream   *NetworkStream // stream from server to client
+	clientID         Endpoint       // the client key(by ip and port)
+	lastTimestamp    time.Time      // timestamp receive last packet
+	lastReqTimestamp time.Time      // timestamp receive last packet
+	lastRspTimestamp time.Time      // timestamp receive last packet
+	isHTTP           bool
+	key              string
 }
 
 // Endpoint is one endpoint of a tcp connection
@@ -138,10 +140,10 @@ func (p Endpoint) equals(v Endpoint) bool { return p.ip == v.ip && p.port == v.p
 func (p Endpoint) String() string         { return p.ip + ":" + strconv.Itoa(int(p.port)) }
 
 // create tcp connection, by the first tcp packet. this packet should from client to server
-func newTCPConnection(key string, src Endpoint, chanSize uint) *TCPConnection {
+func newTCPConnection(key string, src, dst Endpoint, chanSize uint) *TCPConnection {
 	return &TCPConnection{
-		requestStream:  newNetworkStream(src, true, chanSize),
-		responseStream: newNetworkStream(src, false, chanSize),
+		requestStream:  newNetworkStream(src, dst, true, chanSize),
+		responseStream: newNetworkStream(src, dst, false, chanSize),
 		key:            key,
 	}
 }
@@ -164,9 +166,11 @@ func (c *TCPConnection) onReceive(src Endpoint, tcp *layers.TCP, timestamp time.
 	if c.clientID.equals(src) {
 		sendStream = c.requestStream
 		confirmStream = c.responseStream
+		c.lastReqTimestamp = c.lastTimestamp
 	} else {
 		sendStream = c.responseStream
 		confirmStream = c.requestStream
+		c.lastRspTimestamp = c.lastTimestamp
 	}
 
 	sendStream.appendPacket(tcp)
@@ -213,16 +217,19 @@ type NetworkStream struct {
 	ignore bool
 	closed bool
 
-	src       Endpoint
-	isRequest bool
-	LastUUID  []byte
+	src, dst      Endpoint
+	isRequest     bool
+	LastUUID      []byte
+	uuidReadState int
+	lastPacket    *layers.TCP
 }
 
-func newNetworkStream(src Endpoint, isRequest bool, chanSize uint) *NetworkStream {
+func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint) *NetworkStream {
 	return &NetworkStream{
 		window:    newReceiveWindow(64),
 		c:         make(chan *layers.TCP, chanSize),
 		src:       src,
+		dst:       dst,
 		isRequest: isRequest,
 	}
 }
@@ -246,16 +253,16 @@ func (s *NetworkStream) finish() {
 }
 
 // UUID returns the UUID of a TCP request and its response.
-func (s *NetworkStream) UUID(packet *layers.TCP) []byte {
-	streamID := uint64(packet.SrcPort)<<48 | uint64(packet.DstPort)<<32 | uint64(ip2int(s.src.ip))
+func (s *NetworkStream) UUID(p *layers.TCP) []byte {
+	streamID := uint64(s.src.port)<<48 | uint64(s.dst.port)<<32 | uint64(ip2int(s.src.ip))
 
 	id := make([]byte, 12)
 	binary.BigEndian.PutUint64(id, streamID)
 
 	if s.isRequest {
-		binary.BigEndian.PutUint32(id[8:], packet.Ack)
+		binary.BigEndian.PutUint32(id[8:], p.Ack)
 	} else {
-		binary.BigEndian.PutUint32(id[8:], packet.Seq)
+		binary.BigEndian.PutUint32(id[8:], p.Seq)
 	}
 
 	uuidHex := make([]byte, 24)

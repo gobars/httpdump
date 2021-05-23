@@ -42,13 +42,14 @@ type HTTPConnectionHandler struct {
 }
 
 func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
-	ck := ConnectionKey{src: src, dst: dst}
 	trafficHandler := &HTTPTrafficHandler{
-		key:       ck,
-		buffer:    new(bytes.Buffer),
-		option:    h.option,
-		printer:   h.printer,
 		startTime: c.lastTimestamp,
+		HandlerBase: HandlerBase{
+			key:     ConnectionKey{src: src, dst: dst},
+			buffer:  new(bytes.Buffer),
+			option:  h.option,
+			printer: h.printer,
+		},
 	}
 	waitGroup.Add(1)
 	go trafficHandler.handle(c)
@@ -58,15 +59,22 @@ func (h *HTTPConnectionHandler) finish() {
 	//h.printer.finish()
 }
 
+type HandlerBase struct {
+	key     ConnectionKey
+	buffer  *bytes.Buffer
+	option  *Option
+	printer *Printer
+}
+
 // HTTPTrafficHandler parse a http connection traffic and send to printer
 type HTTPTrafficHandler struct {
 	startTime time.Time
 	endTime   time.Time
-	key       ConnectionKey
-	buffer    *bytes.Buffer
-	option    *Option
-	printer   *Printer
+
+	HandlerBase
 }
+
+var reqCounter = Counter{}
 
 // read http request/response stream, and do output
 func (h *HTTPTrafficHandler) handle(c *TCPConnection) {
@@ -90,6 +98,7 @@ func (h *HTTPTrafficHandler) handle(c *TCPConnection) {
 			}
 			break
 		}
+		seq := reqCounter.Incr()
 
 		filtered := false
 		if h.option.Host != "" && !wildcardMatch(req.Host, h.option.Host) {
@@ -110,7 +119,7 @@ func (h *HTTPTrafficHandler) handle(c *TCPConnection) {
 				fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, c.clientID)
 			}
 			if !filtered {
-				h.printRequest(req, c.requestStream.LastUUID)
+				h.printRequest(req, c.requestStream.LastUUID, seq)
 				h.writeLine("")
 				h.printer.send(h.buffer.String())
 			} else {
@@ -124,11 +133,11 @@ func (h *HTTPTrafficHandler) handle(c *TCPConnection) {
 		}
 
 		if !filtered {
-			h.printRequest(req, c.requestStream.LastUUID)
+			h.printRequest(req, c.requestStream.LastUUID, seq)
 			h.writeLine("")
 			h.endTime = c.lastTimestamp
 
-			h.printResponse(req.RequestURI, resp, c.requestStream.LastUUID)
+			h.printResponse(req.RequestURI, resp, c.responseStream.LastUUID, seq)
 			h.printer.send(h.buffer.String())
 		} else {
 			discardAll(req.Body)
@@ -161,7 +170,7 @@ func (h *HTTPTrafficHandler) handle(c *TCPConnection) {
 					break
 				}
 				if !filtered {
-					h.printResponse(req.RequestURI, resp, c.responseStream.LastUUID)
+					h.printResponse(req.RequestURI, resp, c.responseStream.LastUUID, seq)
 					h.printer.send(h.buffer.String())
 				} else {
 					discardAll(resp.Body)
@@ -180,23 +189,23 @@ func (h *HTTPTrafficHandler) handleWebsocket(requestReader *bufio.Reader, respon
 
 }
 
-func (h *HTTPTrafficHandler) writeLineFormat(format string, a ...interface{}) {
+func (h *HandlerBase) writeLineFormat(format string, a ...interface{}) {
 	fmt.Fprintf(h.buffer, format, a...)
 }
 
-func (h *HTTPTrafficHandler) write(a ...interface{}) {
+func (h *HandlerBase) write(a ...interface{}) {
 	fmt.Fprint(h.buffer, a...)
 }
 
-func (h *HTTPTrafficHandler) writeLine(a ...interface{}) {
+func (h *HandlerBase) writeLine(a ...interface{}) {
 	fmt.Fprintln(h.buffer, a...)
 }
 
-func (h *HTTPTrafficHandler) printRequestMark() {
+func (h *HandlerBase) printRequestMark() {
 	h.writeLine()
 }
 
-func (h *HTTPTrafficHandler) printHeader(header httpport.Header) {
+func (h *HandlerBase) printHeader(header httpport.Header) {
 	for name, values := range header {
 		for _, value := range values {
 			h.writeLine(name+":", value)
@@ -205,12 +214,12 @@ func (h *HTTPTrafficHandler) printHeader(header httpport.Header) {
 }
 
 // print http request
-func (h *HTTPTrafficHandler) printRequest(req *httpport.Request, uuid []byte) {
+func (h *HTTPTrafficHandler) printRequest(req *httpport.Request, uuid []byte, seq int32) {
 	defer discardAll(req.Body)
 	if h.option.Curl {
 		h.printCurlRequest(req)
 	} else {
-		h.printNormalRequest(req, uuid)
+		h.printNormalRequest(req, uuid, seq)
 	}
 }
 
@@ -234,7 +243,7 @@ func (h *HTTPTrafficHandler) printCurlRequest(req *httpport.Request) {
 		reader = req.Body
 		deCompressed = false
 	} else {
-		reader, deCompressed = h.tryDecompress(req.Header, req.Body)
+		reader, deCompressed = tryDecompress(req.Header, req.Body)
 	}
 
 	if deCompressed {
@@ -312,12 +321,14 @@ func WriteAllFromReader(path string, r io.Reader) error {
 	return err
 }
 
-var counter int32
+type Counter struct {
+	counter int32
+}
 
-func IncrCounter() int32 { return atomic.AddInt32(&counter, 1) }
+func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }
 
 // print http request
-func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []byte) {
+func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 	if h.option.Level == "url" {
 		h.writeLine(req.Method, req.Host+req.RequestURI)
@@ -325,7 +336,7 @@ func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 	}
 
 	h.writeLine()
-	h.writeLine(fmt.Sprintf("### REQUEST #%d %s %s->%s %s", IncrCounter(),
+	h.writeLine(fmt.Sprintf("### REQUEST #%d %s %s->%s %s", seq,
 		uuid, h.key.src, h.key.dst, h.startTime.Format(time.RFC3339Nano)))
 
 	h.writeLine(req.Method, req.RequestURI, req.Proto)
@@ -364,7 +375,7 @@ func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 }
 
 // print http response
-func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response, uuid []byte) {
+func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response, uuid []byte, seq int32) {
 	defer discardAll(resp.Body)
 
 	if !h.option.PrintResp {
@@ -375,8 +386,9 @@ func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response, 
 		return
 	}
 
-	h.writeLine("### RESPONSE ", h.key.srcString(), string(uuid), "<-", h.key.dstString(),
-		h.startTime.Format(time.RFC3339Nano), "-", h.endTime.Format(time.RFC3339Nano), "=", h.endTime.Sub(h.startTime).String())
+	h.writeLine(fmt.Sprintf("### RESPONSE #%d %s %s->%s %s-%s=%s", seq,
+		uuid, h.key.src, h.key.dst, h.startTime.Format(time.RFC3339Nano),
+		h.endTime.Format(time.RFC3339Nano), h.endTime.Sub(h.startTime).String()))
 
 	h.writeLine(resp.StatusLine)
 	for _, header := range resp.RawHeaders {
@@ -413,7 +425,7 @@ func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response, 
 	}
 }
 
-func (h *HTTPTrafficHandler) tryDecompress(header httpport.Header, reader io.ReadCloser) (io.ReadCloser, bool) {
+func tryDecompress(header httpport.Header, reader io.ReadCloser) (io.ReadCloser, bool) {
 	contentEncoding := header.Get("Content-Encoding")
 	var nr io.ReadCloser
 	var err error
@@ -438,9 +450,9 @@ func (h *HTTPTrafficHandler) tryDecompress(header httpport.Header, reader io.Rea
 }
 
 // print http request/response body
-func (h *HTTPTrafficHandler) printBody(header httpport.Header, reader io.ReadCloser) {
+func (h *HandlerBase) printBody(header httpport.Header, reader io.ReadCloser) {
 	// deal with content encoding such as gzip, deflate
-	nr, decompressed := h.tryDecompress(header, reader)
+	nr, decompressed := tryDecompress(header, reader)
 	if decompressed {
 		defer nr.Close()
 	}
@@ -491,7 +503,7 @@ func (h *HTTPTrafficHandler) printBody(header httpport.Header, reader io.ReadClo
 	h.writeLine()
 }
 
-func (h *HTTPTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
+func (h *HandlerBase) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
 	if h.option.Force && !isBinary {
 		data, err := ioutil.ReadAll(reader)
 		if err != nil {

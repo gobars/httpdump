@@ -24,7 +24,8 @@ type Option struct {
 	Status    Status        `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 	Force     bool          `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl      bool          `usage:"Output an equivalent curl command for each http request"`
-	DumpBody  bool          `usage:"dump http request/response body to file"`
+	DumpBody  bool          `usage:"Dump http request/response body to file"`
+	Fast      bool          `usage:"Fast mode, process request and response separately"`
 	Output    string        `usage:"Write result to file [output] instead of stdout"`
 	Idle      time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
 }
@@ -50,9 +51,18 @@ func run(option *Option) error {
 		return err
 	}
 
-	handler := &HTTPConnectionHandler{
-		option:  option,
-		printer: newPrinter(option.Output),
+	printer := newPrinter(option.Output)
+	var handler ConnectionHandler
+	if option.Fast {
+		handler = &FastConnectionHandler{
+			option:  option,
+			printer: printer,
+		}
+	} else {
+		handler = &HTTPConnectionHandler{
+			option:  option,
+			printer: printer,
+		}
 	}
 	assembler := newTCPAssembler(handler)
 	assembler.chanSize = option.Chan
@@ -63,7 +73,7 @@ func run(option *Option) error {
 
 	assembler.finishAll()
 	waitGroup.Wait()
-	handler.printer.finish()
+	printer.finish()
 	printerWaitGroup.Wait()
 	return nil
 }
