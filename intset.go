@@ -66,6 +66,9 @@ func (s IntSet) String() string {
 
 // Contains checks if this set contains int value.
 func (s IntSet) Contains(value int) bool {
+	if len(s.ranges) == 0 {
+		return true
+	}
 	for _, r := range s.ranges {
 		if r.Contains(value) {
 			return true
