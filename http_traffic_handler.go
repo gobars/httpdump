@@ -331,7 +331,7 @@ func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 	h.writeLine(req.Method, req.RequestURI, req.Proto)
 	h.printHeader(req.Header)
 
-	var hasBody = true
+	hasBody := true
 	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
 		req.Method == "OPTIONS" {
 		hasBody = false
@@ -383,7 +383,7 @@ func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response, 
 		h.writeLine(header)
 	}
 
-	var hasBody = true
+	hasBody := true
 	if resp.ContentLength == 0 || resp.StatusCode == 304 || resp.StatusCode == 204 {
 		hasBody = false
 	}
@@ -451,9 +451,9 @@ func (h *HTTPTrafficHandler) printBody(header httpport.Header, reader io.ReadClo
 		// TODO: detect content type using httpport.DetectContentType()
 	}
 	mimeTypeStr, charset := parseContentType(contentType)
-	var mimeType = parseMimeType(mimeTypeStr)
-	isText := mimeType.isTextContent()
-	isBinary := mimeType.isBinaryContent()
+	mt := parseMimeType(mimeTypeStr)
+	isText := mt.isTextContent()
+	isBinary := mt.isBinaryContent()
 
 	if !isText {
 		if err := h.printNonTextTypeBody(nr, contentType, isBinary); err != nil {
@@ -479,7 +479,7 @@ func (h *HTTPTrafficHandler) printBody(header httpport.Header, reader io.ReadClo
 	}
 
 	// prettify json
-	if mimeType.subType == "json" || likeJSON(body) {
+	if mt.subType == "json" || likeJSON(body) {
 		var jsonValue interface{}
 		_ = json.Unmarshal([]byte(body), &jsonValue)
 		prettyJSON, err := json.MarshalIndent(jsonValue, "", "    ")

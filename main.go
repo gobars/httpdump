@@ -50,11 +50,11 @@ func run(option *Option) error {
 		return err
 	}
 
-	var handler = &HTTPConnectionHandler{
+	handler := &HTTPConnectionHandler{
 		option:  option,
 		printer: newPrinter(option.Output),
 	}
-	var assembler = newTCPAssembler(handler)
+	assembler := newTCPAssembler(handler)
 	assembler.chanSize = option.Chan
 	assembler.filterIP = option.Ip
 	assembler.filterPort = uint16(option.Port)
@@ -69,7 +69,7 @@ func run(option *Option) error {
 }
 
 func loop(packets chan gopacket.Packet, assembler *TCPAssembler, idle time.Duration) {
-	var ticker = time.NewTicker(time.Second * 10)
+	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 
 	for {
