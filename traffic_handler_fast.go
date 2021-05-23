@@ -7,6 +7,7 @@ import (
 	"github.com/bingoohuang/httpdump/httpport"
 	"io"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,7 @@ import (
 type FastConnectionHandler struct {
 	option  *Option
 	printer *Printer
+	wg      sync.WaitGroup
 }
 
 func (h *FastConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
@@ -32,14 +34,12 @@ func (h *FastConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnect
 			option:  h.option,
 			printer: h.printer,
 		}}
-	waitGroup.Add(2)
-	go reqHandler.handleRequest(c)
-	go rspHandler.handleResponse(c)
+	h.wg.Add(2)
+	go reqHandler.handleRequest(&h.wg, c)
+	go rspHandler.handleResponse(&h.wg, c)
 }
 
-func (h *FastConnectionHandler) finish() {
-	//h.printer.finish()
-}
+func (h *FastConnectionHandler) finish() { h.wg.Wait() }
 
 // fastTrafficHandler parse a http connection traffic and send to printer
 type fastTrafficHandler struct {
@@ -47,8 +47,8 @@ type fastTrafficHandler struct {
 }
 
 // read http request/response stream, and do output
-func (h *fastTrafficHandler) handleRequest(c *TCPConnection) {
-	defer waitGroup.Done()
+func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
+	defer wg.Done()
 	defer c.requestStream.Close()
 
 	requestReader := bufio.NewReader(c.requestStream)
@@ -86,8 +86,8 @@ func (h *fastTrafficHandler) handleRequest(c *TCPConnection) {
 var rspCounter = Counter{}
 
 // read http request/response stream, and do output
-func (h *fastTrafficHandler) handleResponse(c *TCPConnection) {
-	defer waitGroup.Done()
+func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
+	defer wg.Done()
 	defer c.responseStream.Close()
 
 	if !h.option.PrintResp {
@@ -126,43 +126,41 @@ func (h *fastTrafficHandler) handleResponse(c *TCPConnection) {
 }
 
 // print http request
-func (h *fastTrafficHandler) printRequest(req *httpport.Request, startTime time.Time, uuid []byte, seq int32) {
+func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Time, uuid []byte, seq int32) {
 	if h.option.Level == "url" {
-		h.writeLine(req.Method, req.Host+req.RequestURI)
+		h.writeLine(r.Method, r.Host+r.RequestURI)
 		return
 	}
 
-	h.writeLine()
-	h.writeLine(fmt.Sprintf("### REQUEST #%d %s %s->%s %s", seq,
-		uuid, h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano)))
+	h.writeLine(fmt.Sprintf("\n### REQUEST #%d %s %s->%s %s",
+		seq, uuid, h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano)))
 
-	h.writeLine(req.Method, req.RequestURI, req.Proto)
-	h.printHeader(req.Header)
+	h.writeLine(r.Method, r.RequestURI, r.Proto)
+	h.printHeader(r.Header)
 
 	hasBody := true
-	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
-		req.Method == "OPTIONS" {
+	if r.ContentLength == 0 || r.Method == "GET" || r.Method == "HEAD" || r.Method == "TRACE" ||
+		r.Method == "OPTIONS" {
 		hasBody = false
 	}
 
 	if h.option.Level == "header" {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(req.Body),
+			h.writeLine("\n// body size:", discardAll(r.Body),
 				", set [level = all] to display http body")
 		}
 		return
 	}
 
-	h.writeLine()
-
 	if hasBody {
-		h.printBody(req.Header, req.Body)
+		h.writeLine()
+		h.printBody(r.Header, r.Body)
 	}
 }
 
 // print http response
-func (h *fastTrafficHandler) printResponse(resp *httpport.Response, endTime time.Time, uuid []byte, seq int32) {
-	defer discardAll(resp.Body)
+func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Time, uuid []byte, seq int32) {
+	defer discardAll(r.Body)
 
 	if !h.option.PrintResp {
 		return
@@ -172,28 +170,29 @@ func (h *fastTrafficHandler) printResponse(resp *httpport.Response, endTime time
 		return
 	}
 
-	h.writeLine("### RESPONSE #", seq, string(uuid), h.key.src, "<-", h.key.dst, endTime.Format(time.RFC3339Nano))
+	h.writeLine(fmt.Sprintf("\n### RESPONSE #%d %s %s<-%s %s",
+		seq, uuid, h.key.src, h.key.dst, endTime.Format(time.RFC3339Nano)))
 
-	h.writeLine(resp.StatusLine)
-	for _, header := range resp.RawHeaders {
+	h.writeLine(r.StatusLine)
+	for _, header := range r.RawHeaders {
 		h.writeLine(header)
 	}
 
 	hasBody := true
-	if resp.ContentLength == 0 || resp.StatusCode == 304 || resp.StatusCode == 204 {
+	if r.ContentLength == 0 || r.StatusCode == 304 || r.StatusCode == 204 {
 		hasBody = false
 	}
 
 	if h.option.Level == "header" {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(resp.Body),
+			h.writeLine("\n// body size:", discardAll(r.Body),
 				", set [level = all] to display http body")
 		}
 		return
 	}
 
-	h.writeLine()
 	if hasBody {
-		h.printBody(resp.Header, resp.Body)
+		h.writeLine()
+		h.printBody(r.Header, r.Body)
 	}
 }

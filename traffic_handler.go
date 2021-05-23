@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,10 +40,12 @@ func (ck *ConnectionKey) dstString() string { return ck.dst.String() }
 type HTTPConnectionHandler struct {
 	option  *Option
 	printer *Printer
+
+	wg sync.WaitGroup
 }
 
 func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
-	trafficHandler := &HTTPTrafficHandler{
+	handler := &HttpTrafficHandler{
 		startTime: c.lastTimestamp,
 		HandlerBase: HandlerBase{
 			key:     ConnectionKey{src: src, dst: dst},
@@ -51,13 +54,11 @@ func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnect
 			printer: h.printer,
 		},
 	}
-	waitGroup.Add(1)
-	go trafficHandler.handle(c)
+	h.wg.Add(1)
+	go handler.handle(&h.wg, c)
 }
 
-func (h *HTTPConnectionHandler) finish() {
-	//h.printer.finish()
-}
+func (h *HTTPConnectionHandler) finish() { h.wg.Wait() }
 
 type HandlerBase struct {
 	key     ConnectionKey
@@ -66,8 +67,8 @@ type HandlerBase struct {
 	printer *Printer
 }
 
-// HTTPTrafficHandler parse a http connection traffic and send to printer
-type HTTPTrafficHandler struct {
+// HttpTrafficHandler parse a http connection traffic and send to printer
+type HttpTrafficHandler struct {
 	startTime time.Time
 	endTime   time.Time
 
@@ -77,8 +78,8 @@ type HTTPTrafficHandler struct {
 var reqCounter = Counter{}
 
 // read http request/response stream, and do output
-func (h *HTTPTrafficHandler) handle(c *TCPConnection) {
-	defer waitGroup.Done()
+func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
+	defer wg.Done()
 	defer c.requestStream.Close()
 	defer c.responseStream.Close()
 	// filter by args setting
@@ -184,7 +185,7 @@ func (h *HTTPTrafficHandler) handle(c *TCPConnection) {
 	h.printer.send(h.buffer.String())
 }
 
-func (h *HTTPTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
+func (h *HttpTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
 	//TODO: websocket
 
 }
@@ -214,7 +215,7 @@ func (h *HandlerBase) printHeader(header httpport.Header) {
 }
 
 // print http request
-func (h *HTTPTrafficHandler) printRequest(req *httpport.Request, uuid []byte, seq int32) {
+func (h *HttpTrafficHandler) printRequest(req *httpport.Request, uuid []byte, seq int32) {
 	defer discardAll(req.Body)
 	if h.option.Curl {
 		h.printCurlRequest(req)
@@ -231,7 +232,7 @@ var blockHeaders = map[string]bool{
 }
 
 // print http request curl command
-func (h *HTTPTrafficHandler) printCurlRequest(req *httpport.Request) {
+func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request) {
 	//TODO: expect-100 continue handle
 
 	h.writeLine()
@@ -328,7 +329,7 @@ type Counter struct {
 func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }
 
 // print http request
-func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []byte, seq int32) {
+func (h *HttpTrafficHandler) printNormalRequest(req *httpport.Request, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 	if h.option.Level == "url" {
 		h.writeLine(req.Method, req.Host+req.RequestURI)
@@ -375,7 +376,7 @@ func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 }
 
 // print http response
-func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response, uuid []byte, seq int32) {
+func (h *HttpTrafficHandler) printResponse(uri string, resp *httpport.Response, uuid []byte, seq int32) {
 	defer discardAll(resp.Body)
 
 	if !h.option.PrintResp {

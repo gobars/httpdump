@@ -712,10 +712,8 @@ func putTextprotoReader(r *Reader) {
 func ReadRequest(b *bufio.Reader) (req *Request, err error) { return readRequest(b, deleteHostHeader) }
 
 // Constants for readRequest's deleteHostHeader parameter.
-const (
-	deleteHostHeader = false
-	keepHostHeader   = true
-)
+const deleteHostHeader = false
+const keepHostHeader = true
 
 func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err error) {
 	tp := newTextprotoReader(b)

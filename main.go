@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"sync"
-
 	"github.com/bingoohuang/gg/pkg/flagparse"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -38,9 +36,6 @@ func main() {
 	}
 }
 
-var waitGroup sync.WaitGroup
-var printerWaitGroup sync.WaitGroup
-
 func run(option *Option) error {
 	if option.Port > 65536 {
 		return fmt.Errorf("ignored invalid port %v", option.Port)
@@ -52,18 +47,7 @@ func run(option *Option) error {
 	}
 
 	printer := newPrinter(option.Output)
-	var handler ConnectionHandler
-	if option.Fast {
-		handler = &FastConnectionHandler{
-			option:  option,
-			printer: printer,
-		}
-	} else {
-		handler = &HTTPConnectionHandler{
-			option:  option,
-			printer: printer,
-		}
-	}
+	handler := option.createConnectionHandler(printer)
 	assembler := newTCPAssembler(handler)
 	assembler.chanSize = option.Chan
 	assembler.filterIP = option.Ip
@@ -72,10 +56,16 @@ func run(option *Option) error {
 	loop(packets, assembler, option.Idle)
 
 	assembler.finishAll()
-	waitGroup.Wait()
 	printer.finish()
-	printerWaitGroup.Wait()
 	return nil
+}
+
+func (o *Option) createConnectionHandler(printer *Printer) ConnectionHandler {
+	if o.Fast {
+		return &FastConnectionHandler{option: o, printer: printer}
+	}
+
+	return &HTTPConnectionHandler{option: o, printer: printer}
 }
 
 func loop(packets chan gopacket.Packet, assembler *TCPAssembler, idle time.Duration) {
