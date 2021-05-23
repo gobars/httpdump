@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 )
@@ -9,6 +10,7 @@ import (
 type Printer struct {
 	outputQueue chan string
 	outputFile  io.WriteCloser
+	discarded   int
 }
 
 var maxOutputQueueLen = 4096
@@ -31,7 +33,11 @@ func newPrinter(outputPath string) *Printer {
 }
 
 func (p *Printer) send(msg string) {
-	p.outputQueue <- msg
+	select {
+	case p.outputQueue <- msg:
+	default:
+		p.discarded++
+	}
 }
 
 func (p *Printer) start() {
@@ -49,4 +55,5 @@ func (p *Printer) printBackground() {
 
 func (p *Printer) finish() {
 	close(p.outputQueue)
+	fmt.Printf("#%d discarded\n", p.discarded)
 }
