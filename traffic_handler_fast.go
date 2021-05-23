@@ -22,19 +22,9 @@ type FastConnectionHandler struct {
 func (h *FastConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
 	key := ConnectionKey{src: src, dst: dst}
 	reqHandler := &fastTrafficHandler{
-		HandlerBase: HandlerBase{
-			key:     key,
-			buffer:  new(bytes.Buffer),
-			option:  h.option,
-			printer: h.printer,
-		}}
+		HandlerBase: HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, printer: h.printer}}
 	rspHandler := &fastTrafficHandler{
-		HandlerBase: HandlerBase{
-			key:     key,
-			buffer:  new(bytes.Buffer),
-			option:  h.option,
-			printer: h.printer,
-		}}
+		HandlerBase: HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, printer: h.printer}}
 	h.wg.Add(2)
 	go reqHandler.handleRequest(&h.wg, c)
 	go rspHandler.handleResponse(&h.wg, c)
@@ -52,13 +42,13 @@ func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection)
 	defer wg.Done()
 	defer c.requestStream.Close()
 
-	requestReader := bufio.NewReader(c.requestStream)
-	defer discardAll(requestReader)
+	rr := bufio.NewReader(c.requestStream)
+	defer discardAll(rr)
 	o := h.option
 
 	for {
 		h.buffer = new(bytes.Buffer)
-		r, err := httpport.ReadRequest(requestReader)
+		r, err := httpport.ReadRequest(rr)
 		startTime := c.lastReqTimestamp
 		if err != nil {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -90,7 +80,8 @@ func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection
 	defer wg.Done()
 	defer c.responseStream.Close()
 
-	if !h.option.PrintResp {
+	o := h.option
+	if !o.PrintResp {
 		discardAll(c.responseStream)
 		return
 	}
@@ -100,7 +91,7 @@ func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection
 
 	for {
 		h.buffer = new(bytes.Buffer)
-		resp, err := httpport.ReadResponse(rr, nil)
+		r, err := httpport.ReadResponse(rr, nil)
 		endTime := c.lastRspTimestamp
 		if err != nil {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -110,17 +101,14 @@ func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection
 			break
 		}
 
-		seq := rspCounter.Incr()
-		filtered := false
-		if !IntSet(h.option.Status).Contains(resp.StatusCode) {
-			filtered = true
-		}
+		filtered := !IntSet(o.Status).Contains(r.StatusCode)
 
-		if !filtered {
-			h.printResponse(resp, endTime, c.responseStream.LastUUID, seq)
-			h.printer.send(h.buffer.String())
+		if filtered {
+			discardAll(r.Body)
 		} else {
-			discardAll(resp.Body)
+			seq := rspCounter.Incr()
+			h.printResponse(r, endTime, c.responseStream.LastUUID, seq)
+			h.printer.send(h.buffer.String())
 		}
 	}
 }

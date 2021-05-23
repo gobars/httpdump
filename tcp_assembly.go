@@ -199,7 +199,6 @@ func (c *TCPConnection) flushOlderThan() {
 	c.requestStream.closed = true
 	c.responseStream.closed = true
 	c.finish()
-
 }
 
 func (c *TCPConnection) closed() bool { return c.requestStream.closed && c.responseStream.closed }
