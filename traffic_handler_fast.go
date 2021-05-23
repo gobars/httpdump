@@ -7,6 +7,7 @@ import (
 	"github.com/bingoohuang/httpdump/httpport"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -53,10 +54,11 @@ func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection)
 
 	requestReader := bufio.NewReader(c.requestStream)
 	defer discardAll(requestReader)
+	o := h.option
 
 	for {
 		h.buffer = new(bytes.Buffer)
-		req, err := httpport.ReadRequest(requestReader)
+		r, err := httpport.ReadRequest(requestReader)
 		startTime := c.lastReqTimestamp
 		if err != nil {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -65,21 +67,19 @@ func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection)
 			}
 			break
 		}
+
+		filtered := o.Host != "" && !wildcardMatch(r.Host, o.Host) ||
+			o.Uri != "" && !wildcardMatch(r.RequestURI, o.Uri) ||
+			o.Method != "" && !strings.Contains(o.Method, r.Method)
+
+		if filtered {
+			discardAll(r.Body)
+			continue
+		}
+
 		seq := reqCounter.Incr()
-
-		filtered := false
-		if h.option.Host != "" && !wildcardMatch(req.Host, h.option.Host) {
-			filtered = true
-		} else if h.option.Uri != "" && !wildcardMatch(req.RequestURI, h.option.Uri) {
-			filtered = true
-		}
-
-		if !filtered {
-			h.printRequest(req, startTime, c.requestStream.LastUUID, seq)
-			h.printer.send(h.buffer.String())
-		} else {
-			discardAll(req.Body)
-		}
+		h.printRequest(r, startTime, c.requestStream.LastUUID, seq)
+		h.printer.send(h.buffer.String())
 	}
 }
 
@@ -95,12 +95,12 @@ func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection
 		return
 	}
 
-	responseReader := bufio.NewReader(c.responseStream)
-	defer discardAll(responseReader)
+	rr := bufio.NewReader(c.responseStream)
+	defer discardAll(rr)
 
 	for {
 		h.buffer = new(bytes.Buffer)
-		resp, err := httpport.ReadResponse(responseReader, nil)
+		resp, err := httpport.ReadResponse(rr, nil)
 		endTime := c.lastRspTimestamp
 		if err != nil {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {

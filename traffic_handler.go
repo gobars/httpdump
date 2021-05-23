@@ -89,9 +89,11 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 	responseReader := bufio.NewReader(c.responseStream)
 	defer discardAll(responseReader)
 
+	o := h.option
+
 	for {
 		h.buffer = new(bytes.Buffer)
-		req, err := httpport.ReadRequest(requestReader)
+		r, err := httpport.ReadRequest(requestReader)
 		h.startTime = c.lastTimestamp
 		if err != nil {
 			if err != io.EOF {
@@ -99,18 +101,22 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			}
 			break
 		}
-		seq := reqCounter.Incr()
 
-		filtered := false
-		if h.option.Host != "" && !wildcardMatch(req.Host, h.option.Host) {
-			filtered = true
-		} else if h.option.Uri != "" && !wildcardMatch(req.RequestURI, h.option.Uri) {
-			filtered = true
+		_seq := int32(0)
+		seqFn := func() int32 {
+			if _seq == 0 {
+				_seq = reqCounter.Incr()
+			}
+			return _seq
 		}
 
+		filtered := o.Host != "" && !wildcardMatch(r.Host, o.Host) ||
+			o.Uri != "" && !wildcardMatch(r.RequestURI, o.Uri) ||
+			o.Method != "" && !strings.Contains(o.Method, r.Method)
+
 		// if is websocket request,  by header: Upgrade: websocket
-		websocket := req.Header.Get("Upgrade") == "websocket"
-		expectContinue := req.Header.Get("Expect") == "100-continue"
+		websocket := r.Header.Get("Upgrade") == "websocket"
+		expectContinue := r.Header.Get("Expect") == "100-continue"
 
 		resp, err := httpport.ReadResponse(responseReader, nil)
 		if err != nil {
@@ -119,30 +125,28 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			} else {
 				fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, c.clientID)
 			}
-			if !filtered {
-				h.printRequest(req, c.requestStream.LastUUID, seq)
+			if filtered {
+				discardAll(r.Body)
+			} else {
+				h.printRequest(r, c.requestStream.LastUUID, seqFn())
 				h.writeLine("")
 				h.printer.send(h.buffer.String())
-			} else {
-				discardAll(req.Body)
 			}
 			break
 		}
 
-		if !IntSet(h.option.Status).Contains(resp.StatusCode) {
-			filtered = true
-		}
+		filtered = filtered || !IntSet(o.Status).Contains(resp.StatusCode)
 
-		if !filtered {
-			h.printRequest(req, c.requestStream.LastUUID, seq)
+		if filtered {
+			discardAll(r.Body)
+			discardAll(resp.Body)
+		} else {
+			h.printRequest(r, c.requestStream.LastUUID, seqFn())
 			h.writeLine("")
 			h.endTime = c.lastTimestamp
 
-			h.printResponse(req.RequestURI, resp, c.responseStream.LastUUID, seq)
+			h.printResponse(r.RequestURI, resp, c.responseStream.LastUUID, seqFn())
 			h.printer.send(h.buffer.String())
-		} else {
-			discardAll(req.Body)
-			discardAll(resp.Body)
 		}
 
 		if websocket {
@@ -170,11 +174,11 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 					fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, c.clientID)
 					break
 				}
-				if !filtered {
-					h.printResponse(req.RequestURI, resp, c.responseStream.LastUUID, seq)
-					h.printer.send(h.buffer.String())
-				} else {
+				if filtered {
 					discardAll(resp.Body)
+				} else {
+					h.printResponse(r.RequestURI, resp, c.responseStream.LastUUID, seqFn())
+					h.printer.send(h.buffer.String())
 				}
 			} else if resp.StatusCode == 417 {
 
@@ -217,6 +221,7 @@ func (h *HandlerBase) printHeader(header httpport.Header) {
 // print http request
 func (h *HttpTrafficHandler) printRequest(req *httpport.Request, uuid []byte, seq int32) {
 	defer discardAll(req.Body)
+
 	if h.option.Curl {
 		h.printCurlRequest(req)
 	} else {

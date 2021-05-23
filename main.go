@@ -18,6 +18,7 @@ type Option struct {
 	Chan      uint          `val:"10240" usage:"Channel size to buffer tcp packets."`
 	Host      string        `usage:"Filter by request host, using wildcard match(*, ?)"`
 	Uri       string        `usage:"Filter by request url path, using wildcard match(*, ?)"`
+	Method    string        `usage:"Filter by request method, multiple by comma"`
 	PrintResp bool          `usage:"Print response or not"`
 	Status    Status        `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 	Force     bool          `usage:"Force print unknown content-type http body even if it seems not to be text content"`
