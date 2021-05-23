@@ -89,14 +89,6 @@ func run(option *Option) error {
 		return fmt.Errorf("ignored invalid port %v", option.Port)
 	}
 
-	if option.Status != "" {
-		statusSet, err := ParseIntSet(option.Status)
-		if err != nil {
-			return fmt.Errorf("status range not valid %v", option.Status)
-		}
-		option.StatusSet = statusSet
-	}
-
 	var packets chan gopacket.Packet
 	if option.File != "" {
 		var handle, err = pcap.OpenOffline(option.File) // read from pcap file

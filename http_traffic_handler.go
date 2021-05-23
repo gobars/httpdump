@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bingoohuang/httpdump/httpport"
@@ -118,7 +119,7 @@ func (h *HTTPTrafficHandler) handle(c *TCPConnection) {
 			break
 		}
 
-		if h.option.StatusSet != nil && !h.option.StatusSet.Contains(resp.StatusCode) {
+		if !IntSet(h.option.Status).Contains(resp.StatusCode) {
 			filtered = true
 		}
 
@@ -311,6 +312,10 @@ func WriteAllFromReader(path string, r io.Reader) error {
 	return err
 }
 
+var counter int32
+
+func IncrCounter() int32 { return atomic.AddInt32(&counter, 1) }
+
 // print http request
 func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []byte) {
 	//TODO: expect-100 continue handle
@@ -320,7 +325,8 @@ func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 	}
 
 	h.writeLine()
-	h.writeLine("### REQUEST ", h.key.srcString(), string(uuid), "->", h.key.dstString(), h.startTime.Format(time.RFC3339Nano))
+	h.writeLine(fmt.Sprintf("### REQUEST #%d %s %s->%s %s", IncrCounter(),
+		uuid, h.key.src, h.key.dst, h.startTime.Format(time.RFC3339Nano)))
 
 	h.writeLine(req.Method, req.RequestURI, req.Proto)
 	h.printHeader(req.Header)
