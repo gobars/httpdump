@@ -793,8 +793,7 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 
 	req.Close = shouldClose(req.ProtoMajor, req.ProtoMinor, req.Header, false)
 
-	err = readTransfer(req, b)
-	if err != nil {
+	if err := readTransfer(req, nil, b); err != nil {
 		return nil, err
 	}
 

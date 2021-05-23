@@ -180,7 +180,7 @@ func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
 
 	fixPragmaCacheControl(resp.Header)
 
-	err = readTransfer(resp, r)
+	err = readTransfer(nil, resp, r)
 	if err != nil {
 		return nil, err
 	}

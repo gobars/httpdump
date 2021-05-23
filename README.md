@@ -24,44 +24,48 @@ Build httpdump requires libpcap-dev and cgo enabled.
 
 httpdump can read from pcap file, or capture data from network interfaces. Usage:
 
-```
+```sh
 Usage of httpdump:
+  -chan uint
+        Channel size to buffer tcp packets. (default 10240)
   -curl
-    	Output an equivalent curl command for each http request
-  -device string
-    	Capture packet from network device. If is any, capture all interface traffics (default "any")
+        Output an equivalent curl command for each http request
   -dump-body
-    	dump http request/response body to file
-  -file string
-    	Read from pcap file. If not set, will capture data from network device by default
+        Dump http request/response body to file
+  -fast
+        Fast mode, process request and response separately
   -force
-    	Force print unknown content-type http body even if it seems not to be text content
+        Force print unknown content-type http body even if it seems not to be text content
   -host string
-    	Filter by request host, using wildcard match(*, ?)
+        Filter by request host, using wildcard match(*, ?)
+  -i string
+        Interface name or pcap file. If not set, If is any, capture all interface traffics (default "any")
   -idle duration
-    	Idle time to remove connection if no package received (default 4m0s)
+        Idle time to remove connection if no package received (default 4m0s)
   -ip string
-    	Filter by ip, if either source or target ip is matched, the packet will be processed
+        Filter by ip, if either source or target ip is matched, the packet will be processed
   -level string
-    	Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body) (default "header")
+        Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body) (default "header")
+  -method string
+        Filter by request method, multiple by comma
   -output string
-    	Write result to file [output] instead of stdout
+        Write result to file [output] instead of stdout
   -port uint
-    	Filter by port, if either source or target port is matched, the packet will be processed.
-  -print-resp
-    	Print response or not
-  -status string
-    	Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400
+        Filter by port, if either source or target port is matched, the packet will be processed.
+  -resp
+        Print response or not
+  -status value
+        Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400
   -uri string
-    	Filter by request url path, using wildcard match(*, ?)
+        Filter by request url path, using wildcard match(*, ?)
 ```
 
 ## Samples
 
 A simple capture:
 
-```
-🕙[2021-05-22 18:05:03.891] ❯ sudo httpdump -device lo0 -port 5003 -print-resp -level all
+```sh
+🕙[2021-05-22 18:05:03.891] ❯ sudo httpdump -i lo0 -port 5003 -resp -level all
 
 ### REQUEST  ::1:59982 ea4e138b00000001b295aafb -> ::1:5003 2021-05-22T18:05:16.065566+08:00
 POST /echo/123 HTTP/1.1
@@ -116,10 +120,10 @@ More:
 ```sh
 # parse pcap file
 sudo tcpdump -wa.pcap tcp
-httpdump -file a.pcap
+httpdump -i a.pcap
 
 # capture specified device:
-httpdump -device eth0
+httpdump -i eth0
 
 # filter by ip and/or port
 httpdump -port 80  # filter by port

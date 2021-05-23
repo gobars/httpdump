@@ -81,7 +81,7 @@ func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection
 	defer c.responseStream.Close()
 
 	o := h.option
-	if !o.PrintResp {
+	if !o.Resp {
 		discardAll(c.responseStream)
 		return
 	}
@@ -150,7 +150,7 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Time, uuid []byte, seq int32) {
 	defer discardAll(r.Body)
 
-	if !h.option.PrintResp {
+	if !h.option.Resp {
 		return
 	}
 

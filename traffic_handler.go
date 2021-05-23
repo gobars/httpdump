@@ -384,7 +384,7 @@ func (h *HttpTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 func (h *HttpTrafficHandler) printResponse(uri string, resp *httpport.Response, uuid []byte, seq int32) {
 	defer discardAll(resp.Body)
 
-	if !h.option.PrintResp {
+	if !h.option.Resp {
 		return
 	}
 

@@ -304,32 +304,32 @@ func suppressedHeaders(status int) []string {
 }
 
 // msg is *Request or *Response.
-func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
+func readTransfer(req *Request, resp *Response, r *bufio.Reader) (err error) {
 	t := &transferReader{RequestMethod: "GET"}
 
+	var msg interface{}
 	// Unify input
-	isResponse := false
-	switch rr := msg.(type) {
-	case *Response:
-		t.Header = rr.Header
-		t.StatusCode = rr.StatusCode
-		t.ProtoMajor = rr.ProtoMajor
-		t.ProtoMinor = rr.ProtoMinor
+	if resp != nil {
+		msg = resp
+		t.Header = resp.Header
+		t.StatusCode = resp.StatusCode
+		t.ProtoMajor = resp.ProtoMajor
+		t.ProtoMinor = resp.ProtoMinor
 		t.Close = shouldClose(t.ProtoMajor, t.ProtoMinor, t.Header, true)
-		isResponse = true
-		if rr.Request != nil {
-			t.RequestMethod = rr.Request.Method
+		if resp.Request != nil {
+			t.RequestMethod = resp.Request.Method
 		}
-	case *Request:
-		t.Header = rr.Header
-		t.RequestMethod = rr.Method
-		t.ProtoMajor = rr.ProtoMajor
-		t.ProtoMinor = rr.ProtoMinor
+	} else if req != nil {
+		msg = req
+		t.Header = req.Header
+		t.RequestMethod = req.Method
+		t.ProtoMajor = req.ProtoMajor
+		t.ProtoMinor = req.ProtoMinor
 		// Transfer semantics for Requests are exactly like those for
 		// Responses with status code 200, responding to a GET method
 		t.StatusCode = 200
-		t.Close = rr.Close
-	default:
+		t.Close = req.Close
+	} else {
 		panic("unexpected type")
 	}
 
@@ -344,11 +344,11 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 		return err
 	}
 
-	realLength, err := fixLength(isResponse, t.StatusCode, t.RequestMethod, t.Header, t.TransferEncoding)
+	realLength, err := fixLength(resp != nil, t.StatusCode, t.RequestMethod, t.Header, t.TransferEncoding)
 	if err != nil {
 		return err
 	}
-	if isResponse && t.RequestMethod == "HEAD" {
+	if resp != nil && t.RequestMethod == "HEAD" {
 		if n, err := parseContentLength(t.Header.get("Content-Length")); err != nil {
 			return err
 		} else {
@@ -367,8 +367,7 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 	// If there is no Content-Length or chunked Transfer-Encoding on a *Response
 	// and the status is not 1xx, 204 or 304, then the body is unbounded.
 	// See RFC2616, section 4.4.
-	switch msg.(type) {
-	case *Response:
+	if resp != nil {
 		if realLength == -1 &&
 			!chunked(t.TransferEncoding) &&
 			bodyAllowedForStatus(t.StatusCode) {
@@ -402,19 +401,18 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 	}
 
 	// Unify output
-	switch rr := msg.(type) {
-	case *Request:
-		rr.Body = t.Body
-		rr.ContentLength = t.ContentLength
-		rr.TransferEncoding = t.TransferEncoding
-		rr.Close = t.Close
-		rr.Trailer = t.Trailer
-	case *Response:
-		rr.Body = t.Body
-		rr.ContentLength = t.ContentLength
-		rr.TransferEncoding = t.TransferEncoding
-		rr.Close = t.Close
-		rr.Trailer = t.Trailer
+	if resp != nil {
+		resp.Body = t.Body
+		resp.ContentLength = t.ContentLength
+		resp.TransferEncoding = t.TransferEncoding
+		resp.Close = t.Close
+		resp.Trailer = t.Trailer
+	} else if req != nil {
+		req.Body = t.Body
+		req.ContentLength = t.ContentLength
+		req.TransferEncoding = t.TransferEncoding
+		req.Close = t.Close
+		req.Trailer = t.Trailer
 	}
 
 	return nil
