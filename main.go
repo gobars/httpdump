@@ -79,12 +79,16 @@ func setupSignalProcess() context.Context {
 	return ctx
 }
 
-func (o *Option) createConnectionHandler(printer *Printer) ConnectionHandler {
+type Sender interface {
+	Send(msg string)
+}
+
+func (o *Option) createConnectionHandler(sender Sender) ConnectionHandler {
 	if o.Fast {
-		return &FastConnectionHandler{option: o, printer: printer}
+		return &FastConnectionHandler{option: o, sender: sender}
 	}
 
-	return &HTTPConnectionHandler{option: o, printer: printer}
+	return &HTTPConnectionHandler{option: o, sender: sender}
 }
 
 func loop(ctx context.Context, packets chan gopacket.Packet, assembler *TCPAssembler, idle time.Duration) {

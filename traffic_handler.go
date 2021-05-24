@@ -38,8 +38,8 @@ func (ck *ConnectionKey) dstString() string { return ck.dst.String() }
 
 // HTTPConnectionHandler impl ConnectionHandler
 type HTTPConnectionHandler struct {
-	option  *Option
-	printer *Printer
+	option *Option
+	sender Sender
 
 	wg sync.WaitGroup
 }
@@ -48,10 +48,10 @@ func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnect
 	handler := &HttpTrafficHandler{
 		startTime: c.lastTimestamp,
 		HandlerBase: HandlerBase{
-			key:     ConnectionKey{src: src, dst: dst},
-			buffer:  new(bytes.Buffer),
-			option:  h.option,
-			printer: h.printer,
+			key:    ConnectionKey{src: src, dst: dst},
+			buffer: new(bytes.Buffer),
+			option: h.option,
+			sender: h.sender,
 		},
 	}
 	h.wg.Add(1)
@@ -61,10 +61,10 @@ func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnect
 func (h *HTTPConnectionHandler) finish() { h.wg.Wait() }
 
 type HandlerBase struct {
-	key     ConnectionKey
-	buffer  *bytes.Buffer
-	option  *Option
-	printer *Printer
+	key    ConnectionKey
+	buffer *bytes.Buffer
+	option *Option
+	sender Sender
 }
 
 // HttpTrafficHandler parse a http connection traffic and send to printer
@@ -130,7 +130,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			} else {
 				h.printRequest(r, c.requestStream.LastUUID, seqFn())
 				h.writeLine("")
-				h.printer.send(h.buffer.String())
+				h.sender.Send(h.buffer.String())
 			}
 			break
 		}
@@ -146,7 +146,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			h.endTime = c.lastTimestamp
 
 			h.printResponse(r.RequestURI, resp, c.responseStream.LastUUID, seqFn())
-			h.printer.send(h.buffer.String())
+			h.sender.Send(h.buffer.String())
 		}
 
 		if websocket {
@@ -178,7 +178,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 					discardAll(resp.Body)
 				} else {
 					h.printResponse(r.RequestURI, resp, c.responseStream.LastUUID, seqFn())
-					h.printer.send(h.buffer.String())
+					h.sender.Send(h.buffer.String())
 				}
 			} else if resp.StatusCode == 417 {
 
@@ -186,7 +186,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 		}
 	}
 
-	h.printer.send(h.buffer.String())
+	h.sender.Send(h.buffer.String())
 }
 
 func (h *HttpTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {

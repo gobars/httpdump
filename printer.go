@@ -30,7 +30,7 @@ func newPrinter(outputPath string) *Printer {
 	return p
 }
 
-func (p *Printer) send(msg string) {
+func (p *Printer) Send(msg string) {
 	select {
 	case p.queue <- msg:
 	default:

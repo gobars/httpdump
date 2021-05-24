@@ -14,17 +14,17 @@ import (
 
 // FastConnectionHandler impl ConnectionHandler
 type FastConnectionHandler struct {
-	option  *Option
-	printer *Printer
-	wg      sync.WaitGroup
+	option *Option
+	sender Sender
+	wg     sync.WaitGroup
 }
 
 func (h *FastConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
 	key := ConnectionKey{src: src, dst: dst}
 	reqHandler := &fastTrafficHandler{
-		HandlerBase: HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, printer: h.printer}}
+		HandlerBase: HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, sender: h.sender}}
 	rspHandler := &fastTrafficHandler{
-		HandlerBase: HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, printer: h.printer}}
+		HandlerBase: HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, sender: h.sender}}
 	h.wg.Add(2)
 	go reqHandler.handleRequest(&h.wg, c)
 	go rspHandler.handleResponse(&h.wg, c)
@@ -69,7 +69,7 @@ func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection)
 
 		seq := reqCounter.Incr()
 		h.printRequest(r, startTime, c.requestStream.LastUUID, seq)
-		h.printer.send(h.buffer.String())
+		h.sender.Send(h.buffer.String())
 	}
 }
 
@@ -108,7 +108,7 @@ func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection
 		} else {
 			seq := rspCounter.Incr()
 			h.printResponse(r, endTime, c.responseStream.LastUUID, seq)
-			h.printer.send(h.buffer.String())
+			h.sender.Send(h.buffer.String())
 		}
 	}
 }
@@ -134,8 +134,7 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 
 	if h.option.Level == "header" {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.Body),
-				", set [level = all] to display http body")
+			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
 		}
 		return
 	}
@@ -150,11 +149,7 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Time, uuid []byte, seq int32) {
 	defer discardAll(r.Body)
 
-	if !h.option.Resp {
-		return
-	}
-
-	if h.option.Level == "url" {
+	if !h.option.Resp || h.option.Level == "url" {
 		return
 	}
 
