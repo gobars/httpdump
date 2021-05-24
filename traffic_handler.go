@@ -392,7 +392,7 @@ func (h *HttpTrafficHandler) printResponse(uri string, resp *httpport.Response, 
 		return
 	}
 
-	h.writeLine(fmt.Sprintf("### RESPONSE #%d %s %s->%s %s-%s=%s", seq,
+	h.writeLine(fmt.Sprintf("### RESPONSE #%d %s %s->%s %s-%s cost %s", seq,
 		uuid, h.key.src, h.key.dst, h.startTime.Format(time.RFC3339Nano),
 		h.endTime.Format(time.RFC3339Nano), h.endTime.Sub(h.startTime).String()))
 
