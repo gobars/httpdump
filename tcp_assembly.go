@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"github.com/bingoohuang/gg/pkg/handy"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -27,6 +28,7 @@ type TCPAssembler struct {
 	filterIP    string
 	filterPort  uint16
 	chanSize    uint
+	human       bool
 }
 
 func newTCPAssembler(handler ConnectionHandler) *TCPAssembler {
@@ -71,7 +73,7 @@ func (r *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bo
 
 	c := r.connections[key]
 	if c == nil && init {
-		c = newTCPConnection(key, src, dst, r.chanSize)
+		c = newTCPConnection(key, src, dst, r.chanSize, r.human)
 		r.connections[key] = c
 		r.handler.handle(src, dst, c)
 	}
@@ -140,10 +142,10 @@ func (p Endpoint) equals(v Endpoint) bool { return p.ip == v.ip && p.port == v.p
 func (p Endpoint) String() string         { return p.ip + ":" + strconv.Itoa(int(p.port)) }
 
 // create tcp connection, by the first tcp packet. this packet should from client to server
-func newTCPConnection(key string, src, dst Endpoint, chanSize uint) *TCPConnection {
+func newTCPConnection(key string, src, dst Endpoint, chanSize uint, human bool) *TCPConnection {
 	return &TCPConnection{
-		requestStream:  newNetworkStream(src, dst, true, chanSize),
-		responseStream: newNetworkStream(src, dst, false, chanSize),
+		requestStream:  newNetworkStream(src, dst, true, chanSize, human),
+		responseStream: newNetworkStream(src, dst, false, chanSize, human),
 		key:            key,
 	}
 }
@@ -221,15 +223,17 @@ type NetworkStream struct {
 	LastUUID      []byte
 	uuidReadState int
 	lastPacket    *layers.TCP
+	human         bool
 }
 
-func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint) *NetworkStream {
+func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint, human bool) *NetworkStream {
 	return &NetworkStream{
 		window:    newReceiveWindow(64),
 		c:         make(chan *layers.TCP, chanSize),
 		src:       src,
 		dst:       dst,
 		isRequest: isRequest,
+		human:     human,
 	}
 }
 
@@ -253,8 +257,8 @@ func (s *NetworkStream) finish() {
 
 // UUID returns the UUID of a TCP request and its response.
 func (s *NetworkStream) UUID(p *layers.TCP) []byte {
-	streamID := uint64(s.src.port)<<48 | uint64(s.dst.port)<<32 | uint64(ip2int(s.src.ip))
-
+	l, r := s.src, s.dst
+	streamID := uint64(l.port)<<48 | uint64(r.port)<<32 | uint64(ip2int(l.ip))
 	id := make([]byte, 12)
 	binary.BigEndian.PutUint64(id, streamID)
 
@@ -264,10 +268,14 @@ func (s *NetworkStream) UUID(p *layers.TCP) []byte {
 		binary.BigEndian.PutUint32(id[8:], p.Seq)
 	}
 
-	uuidHex := make([]byte, 24)
-	hex.Encode(uuidHex[:], id[:])
+	uid := make([]byte, 24)
+	hex.Encode(uid[:], id[:])
 
-	return uuidHex
+	if !s.human {
+		return uid
+	}
+
+	return []byte(fmt.Sprintf("id:%s,%s:%d=>%d,Seq:%d,Ack:%d", uid, l.ip, l.port, r.port, p.Seq, p.Ack))
 }
 
 func ip2int(v string) uint32 {

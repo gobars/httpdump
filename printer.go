@@ -19,9 +19,9 @@ type Printer struct {
 	closer func()
 }
 
-func newPrinter(outputPath string) *Printer {
+func newPrinter(outputPath string, outChanSize uint) *Printer {
 	w, closer := createWriter(outputPath)
-	p := &Printer{queue: make(chan string, 4096), writer: w, closer: closer}
+	p := &Printer{queue: make(chan string, outChanSize), writer: w, closer: closer}
 	p.start()
 	return p
 }

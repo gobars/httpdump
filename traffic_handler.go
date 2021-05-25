@@ -6,6 +6,7 @@ import (
 	"compress/zlib"
 	"encoding/json"
 	"fmt"
+	"github.com/bingoohuang/gg/pkg/ss"
 	"io"
 	"io/ioutil"
 	"os"
@@ -334,31 +335,30 @@ type Counter struct {
 func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }
 
 // print http request
-func (h *HttpTrafficHandler) printNormalRequest(req *httpport.Request, uuid []byte, seq int32) {
+func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 	if h.option.Level == LevelUrl {
-		h.writeLine(req.Method, req.Host+req.RequestURI)
+		h.writeLine(r.Method, r.Host+r.RequestURI)
 		return
 	}
 
-	h.writeLine()
-	h.writeLine(fmt.Sprintf("### REQUEST #%d %s %s->%s %s", seq,
+	h.writeLine(fmt.Sprintf("\n### REQUEST #%d %s %s->%s %s", seq,
 		uuid, h.key.src, h.key.dst, h.startTime.Format(time.RFC3339Nano)))
 
-	h.writeLine(req.Method, req.RequestURI, req.Proto)
-	h.printHeader(req.Header)
+	h.writeLine(r.Method, r.RequestURI, r.Proto)
+	h.printHeader(r.Header)
 
 	hasBody := true
-	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
-		req.Method == "OPTIONS" {
+	if r.ContentLength == 0 || ss.AnyOf(r.Method, "GET", "HEAD", "TRACE") ||
+		r.Method == "OPTIONS" {
 		hasBody = false
 	}
 
 	if h.option.DumpBody {
-		filename := "request-" + uriToFileName(req.RequestURI, h.startTime)
+		filename := "request-" + uriToFileName(r.RequestURI, h.startTime)
 		h.writeLine("\n// dump body to file:", filename)
 
-		err := WriteAllFromReader(filename, req.Body)
+		err := WriteAllFromReader(filename, r.Body)
 		if err != nil {
 			h.writeLine("dump to file failed:", err)
 		}
@@ -367,7 +367,7 @@ func (h *HttpTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 
 	if h.option.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(req.Body),
+			h.writeLine("\n// body size:", discardAll(r.Body),
 				", set [level = all] to display http body")
 		}
 		return
@@ -376,7 +376,7 @@ func (h *HttpTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 	h.writeLine()
 
 	if hasBody {
-		h.printBody(req.Header, req.Body)
+		h.printBody(r.Header, r.Body)
 	}
 }
 

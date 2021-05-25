@@ -25,6 +25,7 @@ type Option struct {
 	Ip       string        `usage:"Filter by ip, if either source or target ip is matched, the packet will be processed"`
 	Port     uint          `usage:"Filter by port, if either source or target port is matched, the packet will be processed."`
 	Chan     uint          `val:"10240" usage:"Channel size to buffer tcp packets."`
+	OutChan  uint          `val:"40960" usage:"Output channel size to buffer tcp packets."`
 	Host     string        `usage:"Filter by request host, using wildcard match(*, ?)"`
 	Uri      string        `usage:"Filter by request url path, using wildcard match(*, ?)"`
 	Method   string        `usage:"Filter by request method, multiple by comma"`
@@ -32,6 +33,7 @@ type Option struct {
 	Status   Status        `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 	Force    bool          `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl     bool          `usage:"Output an equivalent curl command for each http request"`
+	Human    bool          `usage:"Output human readable"`
 	DumpBody bool          `usage:"Dump http request/response body to file"`
 	Fast     bool          `usage:"Fast mode, process request and response separately"`
 	Output   string        `usage:"Write result to file [output] instead of stdout"`
@@ -41,30 +43,31 @@ type Option struct {
 func main() {
 	option := &Option{}
 	flagparse.Parse(option)
-	if err := run(option); err != nil {
+	if err := option.run(); err != nil {
 		panic(err)
 	}
 }
 
-func run(option *Option) error {
-	if option.Port > 65536 {
-		return fmt.Errorf("ignored invalid port %v", option.Port)
+func (o *Option) run() error {
+	if o.Port > 65536 {
+		return fmt.Errorf("ignored invalid port %v", o.Port)
 	}
 
-	packets, err := createPacketsChan(option.Input, option.Host, option.Ip, option.Port)
+	packets, err := createPacketsChan(o.Input, o.Host, o.Ip, o.Port)
 	if err != nil {
 		return err
 	}
 
-	printer := newPrinter(option.Output)
-	handler := option.createConnectionHandler(printer)
+	printer := newPrinter(o.Output, o.OutChan)
+	handler := o.createConnectionHandler(printer)
 	assembler := newTCPAssembler(handler)
-	assembler.chanSize = option.Chan
-	assembler.filterIP = option.Ip
-	assembler.filterPort = uint16(option.Port)
+	assembler.human = o.Human
+	assembler.chanSize = o.Chan
+	assembler.filterIP = o.Ip
+	assembler.filterPort = uint16(o.Port)
 
 	c := ctx.RegisterSignals(nil)
-	loop(c, packets, assembler, option.Idle)
+	loop(c, packets, assembler, o.Idle)
 
 	assembler.finishAll()
 	printer.finish()
