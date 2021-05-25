@@ -28,7 +28,6 @@ type TCPAssembler struct {
 	filterIP    string
 	filterPort  uint16
 	chanSize    uint
-	human       bool
 }
 
 func newTCPAssembler(handler ConnectionHandler) *TCPAssembler {
@@ -73,7 +72,7 @@ func (r *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bo
 
 	c := r.connections[key]
 	if c == nil && init {
-		c = newTCPConnection(key, src, dst, r.chanSize, r.human)
+		c = newTCPConnection(key, src, dst, r.chanSize)
 		r.connections[key] = c
 		r.handler.handle(src, dst, c)
 	}
@@ -142,10 +141,10 @@ func (p Endpoint) equals(v Endpoint) bool { return p.ip == v.ip && p.port == v.p
 func (p Endpoint) String() string         { return p.ip + ":" + strconv.Itoa(int(p.port)) }
 
 // create tcp connection, by the first tcp packet. this packet should from client to server
-func newTCPConnection(key string, src, dst Endpoint, chanSize uint, human bool) *TCPConnection {
+func newTCPConnection(key string, src, dst Endpoint, chanSize uint) *TCPConnection {
 	return &TCPConnection{
-		requestStream:  newNetworkStream(src, dst, true, chanSize, human),
-		responseStream: newNetworkStream(src, dst, false, chanSize, human),
+		requestStream:  newNetworkStream(src, dst, true, chanSize),
+		responseStream: newNetworkStream(src, dst, false, chanSize),
 		key:            key,
 	}
 }
@@ -223,17 +222,15 @@ type NetworkStream struct {
 	LastUUID      []byte
 	uuidReadState int
 	lastPacket    *layers.TCP
-	human         bool
 }
 
-func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint, human bool) *NetworkStream {
+func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint) *NetworkStream {
 	return &NetworkStream{
 		window:    newReceiveWindow(64),
 		c:         make(chan *layers.TCP, chanSize),
 		src:       src,
 		dst:       dst,
 		isRequest: isRequest,
-		human:     human,
 	}
 }
 
@@ -270,10 +267,6 @@ func (s *NetworkStream) UUID(p *layers.TCP) []byte {
 
 	uid := make([]byte, 24)
 	hex.Encode(uid[:], id[:])
-
-	if !s.human {
-		return uid
-	}
 
 	return []byte(fmt.Sprintf("id:%s,Seq:%d,Ack:%d", uid, p.Seq, p.Ack))
 }

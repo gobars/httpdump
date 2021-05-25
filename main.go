@@ -33,7 +33,6 @@ type Option struct {
 	Status   Status        `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 	Force    bool          `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl     bool          `usage:"Output an equivalent curl command for each http request"`
-	Human    bool          `usage:"Output human readable"`
 	DumpBody bool          `usage:"Dump http request/response body to file"`
 	Fast     bool          `usage:"Fast mode, process request and response separately"`
 	Output   string        `usage:"Write result to file [output] instead of stdout"`
@@ -61,7 +60,6 @@ func (o *Option) run() error {
 	printer := newPrinter(o.Output, o.OutChan)
 	handler := o.createConnectionHandler(printer)
 	assembler := newTCPAssembler(handler)
-	assembler.human = o.Human
 	assembler.chanSize = o.Chan
 	assembler.filterIP = o.Ip
 	assembler.filterPort = uint16(o.Port)

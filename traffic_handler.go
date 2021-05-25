@@ -146,7 +146,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			h.writeLine("")
 			h.endTime = c.lastTimestamp
 
-			h.printResponse(r.RequestURI, resp, c.responseStream.LastUUID, seqFn())
+			h.printResponse(resp, c.responseStream.LastUUID, seqFn())
 			h.sender.Send(h.buffer.String())
 		}
 
@@ -178,7 +178,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 				if filtered {
 					discardAll(resp.Body)
 				} else {
-					h.printResponse(r.RequestURI, resp, c.responseStream.LastUUID, seqFn())
+					h.printResponse(resp, c.responseStream.LastUUID, seqFn())
 					h.sender.Send(h.buffer.String())
 				}
 			} else if resp.StatusCode == 417 {
@@ -224,7 +224,7 @@ func (h *HttpTrafficHandler) printRequest(req *httpport.Request, uuid []byte, se
 	defer discardAll(req.Body)
 
 	if h.option.Curl {
-		h.printCurlRequest(req)
+		h.printCurlRequest(req, uuid, seq)
 	} else {
 		h.printNormalRequest(req, uuid, seq)
 	}
@@ -238,7 +238,7 @@ var blockHeaders = map[string]bool{
 }
 
 // print http request curl command
-func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request) {
+func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 
 	h.writeLine()
@@ -256,9 +256,9 @@ func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request) {
 	if deCompressed {
 		defer reader.Close()
 	}
-	seq := 0
+	idx := 0
 	for name, values := range req.Header {
-		seq++
+		idx++
 		if blockHeaders[name] {
 			continue
 		}
@@ -268,7 +268,7 @@ func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request) {
 			}
 		}
 		for idx, value := range values {
-			if seq == len(req.Header) && idx == len(values)-1 {
+			if idx == len(req.Header) && idx == len(values)-1 {
 				h.writeLineFormat("    -H '%v: %v'\n", name, value)
 			} else {
 				h.writeLineFormat("    -H '%v: %v' \\\n", name, value)
@@ -276,17 +276,16 @@ func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request) {
 		}
 	}
 
-	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
-		req.Method == "OPTIONS" {
+	if req.ContentLength == 0 || ss.AnyOf(req.Method, "GET", "HEAD", "TRACE", "OPTIONS") {
 		h.writeLine()
 		return
 	}
 
 	if h.option.DumpBody {
-		filename := "request-" + uriToFileName(req.RequestURI, h.startTime)
-		h.writeLineFormat("    -d '@%v'", filename)
+		fn := bodyFileName(uuid, seq, "request", h.startTime)
+		h.writeLineFormat("    -d '@%v'", fn)
 
-		if err := WriteAllFromReader(filename, reader); err != nil {
+		if err := WriteAllFromReader(fn, reader); err != nil {
 			h.writeLine("dump to file failed:", err)
 		}
 	} else {
@@ -355,11 +354,10 @@ func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte
 	}
 
 	if h.option.DumpBody {
-		filename := "request-" + uriToFileName(r.RequestURI, h.startTime)
-		h.writeLine("\n// dump body to file:", filename)
+		fn := bodyFileName(uuid, seq, "request", h.startTime)
+		h.writeLine("\n// dump body to file:", fn)
 
-		err := WriteAllFromReader(filename, r.Body)
-		if err != nil {
+		if err := WriteAllFromReader(fn, r.Body); err != nil {
 			h.writeLine("dump to file failed:", err)
 		}
 		return
@@ -381,7 +379,7 @@ func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte
 }
 
 // print http response
-func (h *HttpTrafficHandler) printResponse(uri string, resp *httpport.Response, uuid []byte, seq int32) {
+func (h *HttpTrafficHandler) printResponse(resp *httpport.Response, uuid []byte, seq int32) {
 	defer discardAll(resp.Body)
 
 	if !h.option.Resp {
@@ -407,11 +405,9 @@ func (h *HttpTrafficHandler) printResponse(uri string, resp *httpport.Response, 
 	}
 
 	if h.option.DumpBody {
-		filename := "response-" + uriToFileName(uri, h.startTime)
-		h.writeLine("\n// dump body to file:", filename)
-
-		err := WriteAllFromReader(filename, resp.Body)
-		if err != nil {
+		fn := bodyFileName(uuid, seq, "response", h.startTime)
+		h.writeLine("\n// dump body to file:", fn)
+		if err := WriteAllFromReader(fn, resp.Body); err != nil {
 			h.writeLine("dump to file failed:", err)
 		}
 		return
@@ -529,8 +525,7 @@ func discardAll(r io.Reader) (discarded int) {
 	return tcpreader.DiscardBytesToEOF(r)
 }
 
-func uriToFileName(uri string, t time.Time) string {
-	timeStr := t.Format("2006_01_02_15_04_05.000000")
-	filename := strings.ReplaceAll(uri, "/", "_") + "-" + timeStr
-	return filename[1:]
+func bodyFileName(uuid []byte, seq int32, req string, t time.Time) string {
+	timeStr := t.Format("20060102")
+	return fmt.Sprintf("%s.%d.%s.%s", timeStr, seq, uuid, req)
 }
