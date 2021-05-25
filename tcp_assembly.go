@@ -34,7 +34,7 @@ func newTCPAssembler(handler ConnectionHandler) *TCPAssembler {
 	return &TCPAssembler{connections: map[string]*TCPConnection{}, handler: handler}
 }
 
-func (r *TCPAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
+func (r *TCPAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
 	src := Endpoint{ip: flow.Src().String(), port: uint16(tcp.SrcPort)}
 	dst := Endpoint{ip: flow.Dst().String(), port: uint16(tcp.DstPort)}
 	if r.filterIP != "" && src.ip != r.filterIP && dst.ip != r.filterIP {
@@ -86,7 +86,7 @@ func (r *TCPAssembler) deleteConnection(key string) {
 }
 
 // flush timeout connections
-func (r *TCPAssembler) flushOlderThan(time time.Time) {
+func (r *TCPAssembler) FlushOlderThan(time time.Time) {
 	var connections []*TCPConnection
 
 	r.lock.Lock()
@@ -103,7 +103,7 @@ func (r *TCPAssembler) flushOlderThan(time time.Time) {
 	}
 }
 
-func (r *TCPAssembler) finishAll() {
+func (r *TCPAssembler) FinishAll() {
 	defer r.lock.LockDeferUnlock()()
 
 	for _, connection := range r.connections {

@@ -255,6 +255,15 @@ type Request struct {
 	Cancel <-chan struct{}
 }
 
+func (r *Request) GetBody() io.ReadCloser         { return r.Body }
+func (r *Request) GetHost() string                { return r.Host }
+func (r *Request) GetRequestURI() string          { return r.RequestURI }
+func (r *Request) GetPath() string                { return r.URL.Path }
+func (r *Request) GetMethod() string              { return r.Method }
+func (r *Request) GetProto() string               { return r.Proto }
+func (r *Request) GetHeader() map[string][]string { return r.Header }
+func (r *Request) GetContentLength() int64        { return r.ContentLength }
+
 // ProtoAtLeast reports whether the HTTP protocol used
 // in the request is at least major.minor.
 func (r *Request) ProtoAtLeast(major, minor int) bool {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/google/gopacket/tcpassembly"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -38,7 +39,7 @@ type Option struct {
 	Force    bool          `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl     bool          `usage:"Output an equivalent curl command for each http request"`
 	DumpBody string        `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
-	Fast     bool          `usage:"Fast mode, process request and response separately"`
+	Mode     string        `val:"fast" usage:"std/fast/pair"`
 	Output   string        `usage:"Write result to file [output] instead of stdout"`
 	Idle     time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
 
@@ -56,6 +57,17 @@ func main() {
 	}
 }
 
+type TcpStdAssembler struct {
+	*tcpassembly.Assembler
+}
+
+func (r *TcpStdAssembler) FinishAll()                    { r.Assembler.FlushAll() }
+func (r *TcpStdAssembler) FlushOlderThan(time time.Time) { r.Assembler.FlushOlderThan(time) }
+
+func (r *TcpStdAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
+	r.Assembler.AssembleWithTimestamp(flow, tcp, timestamp)
+}
+
 func (o *Option) run() error {
 	if o.Port > 65536 {
 		return fmt.Errorf("ignored invalid port %v", o.Port)
@@ -66,19 +78,34 @@ func (o *Option) run() error {
 		return err
 	}
 
-	printer := newPrinter(o.Output, o.OutChan)
-	handler := o.createConnectionHandler(printer)
-	assembler := newTCPAssembler(handler)
-	assembler.chanSize = o.Chan
-	assembler.filterIP = o.Ip
-	assembler.filterPort = uint16(o.Port)
-
 	c := ctx.RegisterSignals(nil)
+
+	printer := newPrinter(o.Output, o.OutChan)
+
+	var assembler Assembler
+
+	switch o.Mode {
+	case "fast", "pair":
+		handler := o.createConnectionHandler(printer)
+		a := newTCPAssembler(handler)
+		a.chanSize = o.Chan
+		a.filterIP = o.Ip
+		a.filterPort = uint16(o.Port)
+		assembler = a
+	default:
+		assembler = createTcpAssembler(c, o, printer)
+	}
+
 	loop(c, packets, assembler, o.Idle)
 
-	assembler.finishAll()
+	assembler.FinishAll()
 	printer.finish()
 	return nil
+}
+
+func createTcpAssembler(c context.Context, o *Option, printer *Printer) *TcpStdAssembler {
+	assembler := tcpassembly.NewAssembler(tcpassembly.NewStreamPool(NewFactory(c, o, printer)))
+	return &TcpStdAssembler{Assembler: assembler}
 }
 
 type Sender interface {
@@ -86,7 +113,7 @@ type Sender interface {
 }
 
 func (o *Option) createConnectionHandler(sender Sender) ConnectionHandler {
-	if o.Fast {
+	if o.Mode == "fast" {
 		return &FastConnectionHandler{option: o, sender: sender}
 	}
 
@@ -124,7 +151,13 @@ func (o *Option) CanDump() bool {
 	return o.dumpMax <= 0 || atomic.LoadUint32(&o.dumpNum) < o.dumpMax
 }
 
-func loop(ctx context.Context, packets chan gopacket.Packet, assembler *TCPAssembler, idle time.Duration) {
+type Assembler interface {
+	Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time)
+	FlushOlderThan(time time.Time)
+	FinishAll()
+}
+
+func loop(ctx context.Context, packets chan gopacket.Packet, assembler Assembler, idle time.Duration) {
 	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 
@@ -141,10 +174,10 @@ func loop(ctx context.Context, packets chan gopacket.Packet, assembler *TCPAssem
 				continue
 			}
 
-			assembler.assemble(n.NetworkFlow(), t.(*layers.TCP), p.Metadata().Timestamp)
+			assembler.Assemble(n.NetworkFlow(), t.(*layers.TCP), p.Metadata().Timestamp)
 		case <-ticker.C:
 			// flush connections that haven't been activity in the idle time
-			assembler.flushOlderThan(time.Now().Add(-idle))
+			assembler.FlushOlderThan(time.Now().Add(-idle))
 		case <-ctx.Done():
 			return
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/bingoohuang/gg/pkg/ss"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -23,19 +24,23 @@ import (
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
+type Key interface {
+	Src() string
+	Dst() string
+}
+
 // ConnectionKey contains src and dst endpoint identify a connection
 type ConnectionKey struct {
-	src Endpoint
-	dst Endpoint
+	src, dst Endpoint
 }
 
 func (ck *ConnectionKey) reverse() ConnectionKey { return ConnectionKey{ck.dst, ck.src} }
 
-// return the src ip and port
-func (ck *ConnectionKey) srcString() string { return ck.src.String() }
+// Src return the src ip and port
+func (ck *ConnectionKey) Src() string { return ck.src.String() }
 
-// return the dst ip and port
-func (ck *ConnectionKey) dstString() string { return ck.dst.String() }
+// Dst return the dst ip and port
+func (ck *ConnectionKey) Dst() string { return ck.dst.String() }
 
 // HTTPConnectionHandler impl ConnectionHandler
 type HTTPConnectionHandler struct {
@@ -49,7 +54,7 @@ func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnect
 	handler := &HttpTrafficHandler{
 		startTime: c.lastTimestamp,
 		HandlerBase: HandlerBase{
-			key:    ConnectionKey{src: src, dst: dst},
+			key:    &ConnectionKey{src: src, dst: dst},
 			buffer: new(bytes.Buffer),
 			option: h.option,
 			sender: h.sender,
@@ -62,7 +67,7 @@ func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnect
 func (h *HTTPConnectionHandler) finish() { h.wg.Wait() }
 
 type HandlerBase struct {
-	key    ConnectionKey
+	key    Key
 	buffer *bytes.Buffer
 	option *Option
 	sender Sender
@@ -211,7 +216,7 @@ func (h *HandlerBase) printRequestMark() {
 	h.writeLine()
 }
 
-func (h *HandlerBase) printHeader(header httpport.Header) {
+func (h *HandlerBase) printHeader(header map[string][]string) {
 	for name, values := range header {
 		for _, value := range values {
 			h.writeLine(name+":", value)
@@ -238,25 +243,25 @@ var blockHeaders = map[string]bool{
 }
 
 // print http request curl command
-func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request, uuid []byte, seq int32) {
+func (h *HttpTrafficHandler) printCurlRequest(req Req, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 
-	h.writeLine("\n### REQUEST ", h.key.srcString(), "->", h.key.dstString(), h.startTime.Format(time.RFC3339Nano))
-	h.writeLineFormat("curl -X %v http://%v%v \\\n", req.Method, h.key.dstString(), req.RequestURI)
+	h.writeLine("\n### REQUEST ", h.key.Src(), "->", h.key.Dst(), h.startTime.Format(time.RFC3339Nano))
+	h.writeLineFormat("curl -X %v http://%v%v \\\n", req.GetMethod(), h.key.Dst(), req.GetRequestURI())
 	var reader io.ReadCloser
 	deCompressed := false
 	o := h.option
 	if o.DumpBody != "" {
-		reader = req.Body
+		reader = req.GetBody()
 	} else {
-		reader, deCompressed = tryDecompress(req.Header, req.Body)
+		reader, deCompressed = tryDecompress(req.GetHeader(), req.GetBody())
 	}
 
 	if deCompressed {
 		defer reader.Close()
 	}
 	idx := 0
-	for name, values := range req.Header {
+	for name, values := range req.GetHeader() {
 		idx++
 		if blockHeaders[name] {
 			continue
@@ -267,7 +272,7 @@ func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request, uuid []byte
 			}
 		}
 		for idx, value := range values {
-			if idx == len(req.Header) && idx == len(values)-1 {
+			if idx == len(req.GetHeader()) && idx == len(values)-1 {
 				h.writeLineFormat("    -H '%v: %v'\n", name, value)
 			} else {
 				h.writeLineFormat("    -H '%v: %v' \\\n", name, value)
@@ -275,7 +280,7 @@ func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request, uuid []byte
 		}
 	}
 
-	if req.ContentLength == 0 || ss.AnyOf(req.Method, "GET", "HEAD", "TRACE", "OPTIONS") {
+	if req.GetContentLength() == 0 || ss.AnyOf(req.GetMethod(), "GET", "HEAD", "TRACE", "OPTIONS") {
 		h.writeLine()
 		return
 	}
@@ -339,26 +344,26 @@ type Counter struct {
 func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }
 
 // printNormalRequest prints http request.
-func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte, seq int32) {
+func (h *HttpTrafficHandler) printNormalRequest(r Req, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 	o := h.option
 	if o.Level == LevelUrl {
-		h.writeLine(r.Method, r.Host+r.RequestURI)
+		h.writeLine(r.GetMethod(), r.GetHost()+r.GetRequestURI())
 		return
 	}
 
 	h.writeLine(fmt.Sprintf("\n### REQUEST #%d %s %s->%s %s", seq,
-		uuid, h.key.src, h.key.dst, h.startTime.Format(time.RFC3339Nano)))
+		uuid, h.key.Src(), h.key.Dst(), h.startTime.Format(time.RFC3339Nano)))
 
-	h.writeLine(r.Method, r.RequestURI, r.Proto)
-	h.printHeader(r.Header)
+	h.writeLine(r.GetMethod(), r.GetRequestURI(), r.GetProto())
+	h.printHeader(r.GetHeader())
 
-	contentLength := parseContentLength(r.ContentLength, r.Header)
-	hasBody := contentLength > 0 && !ss.AnyOf(r.Method, "GET", "HEAD", "TRACE", "OPTIONS")
+	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
+	hasBody := contentLength > 0 && !ss.AnyOf(r.GetMethod(), "GET", "HEAD", "TRACE", "OPTIONS")
 
 	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "request", h.startTime)
-		if n, err := DumpBody(r.Body, fn, &o.dumpNum); err != nil {
+		if n, err := DumpBody(r.GetBody(), fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
 		} else if n > 0 {
 			h.writeLine("\n// dump body to file:", fn, "size:", n)
@@ -368,20 +373,29 @@ func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte
 
 	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
+			h.writeLine("\n// body size:", discardAll(r.GetBody()), ", set [level = all] to display http body")
 		}
 		return
 	}
 
 	if hasBody {
 		h.writeLine()
-		h.printBody(r.Header, r.Body)
+		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
 
+type Rsp interface {
+	GetBody() io.ReadCloser
+	GetStatusLine() string
+	GetRawHeaders() []string
+	GetContentLength() int64
+	GetHeader() http.Header
+	GetStatusCode() int
+}
+
 // print http response
-func (h *HttpTrafficHandler) printResponse(r *httpport.Response, uuid []byte, seq int32) {
-	defer discardAll(r.Body)
+func (h *HttpTrafficHandler) printResponse(r Rsp, uuid []byte, seq int32) {
+	defer discardAll(r.GetBody())
 
 	o := h.option
 	if !o.Resp {
@@ -389,24 +403,24 @@ func (h *HttpTrafficHandler) printResponse(r *httpport.Response, uuid []byte, se
 	}
 
 	h.writeLine(fmt.Sprintf("\n### RESPONSE #%d %s %s->%s %s-%s cost %s", seq,
-		uuid, h.key.src, h.key.dst, h.startTime.Format(time.RFC3339Nano),
+		uuid, h.key.Src(), h.key.Dst(), h.startTime.Format(time.RFC3339Nano),
 		h.endTime.Format(time.RFC3339Nano), h.endTime.Sub(h.startTime).String()))
-	h.writeLine(r.StatusLine)
+	h.writeLine(r.GetStatusLine())
 
 	if o.Level == LevelUrl {
 		return
 	}
 
-	for _, header := range r.RawHeaders {
+	for _, header := range r.GetRawHeaders() {
 		h.writeLine(header)
 	}
 
-	contentLength := parseContentLength(r.ContentLength, r.Header)
-	hasBody := contentLength > 0 && r.StatusCode != 304 && r.StatusCode != 204
+	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
+	hasBody := contentLength > 0 && r.GetStatusCode() != 304 && r.GetStatusCode() != 204
 
 	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "response", h.startTime)
-		if n, err := DumpBody(r.Body, fn, &o.dumpNum); err != nil {
+		if n, err := DumpBody(r.GetBody(), fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
 		} else if n > 0 {
 			h.writeLine("\n// dump body to file:", fn, "size:", n)
@@ -416,18 +430,18 @@ func (h *HttpTrafficHandler) printResponse(r *httpport.Response, uuid []byte, se
 
 	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
+			h.writeLine("\n// body size:", discardAll(r.GetBody()), ", set [level = all] to display http body")
 		}
 		return
 	}
 
 	if hasBody {
 		h.writeLine()
-		h.printBody(r.Header, r.Body)
+		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
 
-func tryDecompress(header httpport.Header, reader io.ReadCloser) (io.ReadCloser, bool) {
+func tryDecompress(header http.Header, reader io.ReadCloser) (io.ReadCloser, bool) {
 	contentEncoding := header.Get("Content-Encoding")
 	var nr io.ReadCloser
 	var err error
@@ -452,7 +466,7 @@ func tryDecompress(header httpport.Header, reader io.ReadCloser) (io.ReadCloser,
 }
 
 // print http request/response body
-func (h *HandlerBase) printBody(header httpport.Header, reader io.ReadCloser) {
+func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 	// deal with content encoding such as gzip, deflate
 	nr, decompressed := tryDecompress(header, reader)
 	if decompressed {

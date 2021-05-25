@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -99,6 +100,13 @@ type Response struct {
 	// modified.
 	TLS *tls.ConnectionState
 }
+
+func (r *Response) GetBody() io.ReadCloser  { return r.Body }
+func (r *Response) GetStatusLine() string   { return r.StatusLine }
+func (r *Response) GetRawHeaders() []string { return r.RawHeaders }
+func (r *Response) GetContentLength() int64 { return r.ContentLength }
+func (r *Response) GetHeader() http.Header  { return http.Header(r.Header) }
+func (r *Response) GetStatusCode() int      { return r.StatusCode }
 
 // Cookies parses and returns the cookies set in the Set-Cookie headers.
 func (r *Response) Cookies() []*Cookie {

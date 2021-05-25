@@ -7,6 +7,7 @@ import (
 	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/httpdump/httpport"
 	"io"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -22,11 +23,9 @@ type FastConnectionHandler struct {
 }
 
 func (h *FastConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
-	key := ConnectionKey{src: src, dst: dst}
-	reqHandler := &fastTrafficHandler{
-		HandlerBase: HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, sender: h.sender}}
-	rspHandler := &fastTrafficHandler{
-		HandlerBase: HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, sender: h.sender}}
+	key := &ConnectionKey{src: src, dst: dst}
+	reqHandler := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, sender: h.sender}
+	rspHandler := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, sender: h.sender}
 	h.wg.Add(2)
 	go reqHandler.handleRequest(&h.wg, c)
 	go rspHandler.handleResponse(&h.wg, c)
@@ -34,13 +33,8 @@ func (h *FastConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnect
 
 func (h *FastConnectionHandler) finish() { h.wg.Wait() }
 
-// fastTrafficHandler parse a http connection traffic and send to printer
-type fastTrafficHandler struct {
-	HandlerBase
-}
-
 // read http request/response stream, and do output
-func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
+func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
 	defer c.requestStream.Close()
 
@@ -53,39 +47,54 @@ func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection)
 		r, err := httpport.ReadRequest(rr)
 		startTime := c.lastReqTimestamp
 		if err != nil {
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				h.sender.Send(fmt.Sprintf("\n### EOF   %s->%s %s",
-					h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano)))
-			} else {
-				h.sender.Send(fmt.Sprintf("\n### Err   %s->%s %s, error: %v",
-					h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano), err))
-				fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
-			}
+			h.handleError(err, startTime)
 			break
 		}
 
-		h.processRequest(r, c, o, startTime)
+		h.processRequest(r, c.requestStream.LastUUID, o, startTime)
 	}
 }
 
-func (h *fastTrafficHandler) processRequest(r *httpport.Request, c *TCPConnection, o *Option, startTime time.Time) {
-	defer discardAll(r.Body)
+func (h *HandlerBase) handleError(err error, startTime time.Time) {
+	if IsEOF(err) {
+		h.sender.Send(fmt.Sprintf("\n### EOF   %s->%s %s",
+			h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
+	} else {
+		h.sender.Send(fmt.Sprintf("\n### Err   %s->%s %s, error: %v",
+			h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano), err))
+		fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
+	}
+}
 
-	if filtered := o.Host != "" && !wildcardMatch(r.Host, o.Host) ||
-		o.Uri != "" && !wildcardMatch(r.RequestURI, o.Uri) ||
-		o.Method != "" && !strings.Contains(o.Method, r.Method); filtered {
+type Req interface {
+	GetBody() io.ReadCloser
+	GetHost() string
+	GetRequestURI() string
+	GetPath() string
+	GetMethod() string
+	GetProto() string
+	GetHeader() map[string][]string
+	GetContentLength() int64
+}
+
+func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime time.Time) {
+	defer discardAll(r.GetBody())
+
+	if filtered := o.Host != "" && !wildcardMatch(r.GetHost(), o.Host) ||
+		o.Uri != "" && !wildcardMatch(r.GetRequestURI(), o.Uri) ||
+		o.Method != "" && !strings.Contains(o.Method, r.GetMethod()); filtered {
 		return
 	}
 
 	seq := reqCounter.Incr()
-	h.printRequest(r, startTime, c.requestStream.LastUUID, seq)
+	h.printRequest(r, startTime, uuid, seq)
 	h.sender.Send(h.buffer.String())
 }
 
 var rspCounter = Counter{}
 
 // read http request/response stream, and do output
-func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
+func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
 	defer c.responseStream.Close()
 
@@ -110,42 +119,42 @@ func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection
 			break
 		}
 
-		h.processResponse(r, c, o, endTime)
+		h.processResponse(r, c.responseStream.LastUUID, o, endTime)
 	}
 }
 
-func (h *fastTrafficHandler) processResponse(r *httpport.Response, c *TCPConnection, o *Option, endTime time.Time) {
-	defer discardAll(r.Body)
+func (h *HandlerBase) processResponse(r Rsp, uuid []byte, o *Option, endTime time.Time) {
+	defer discardAll(r.GetBody())
 
-	if filtered := !IntSet(o.Status).Contains(r.StatusCode); filtered {
+	if filtered := !IntSet(o.Status).Contains(r.GetStatusCode()); filtered {
 		return
 	}
 
 	seq := rspCounter.Incr()
-	h.printResponse(r, endTime, c.responseStream.LastUUID, seq)
+	h.printResponse(r, endTime, uuid, seq)
 	h.sender.Send(h.buffer.String())
 }
 
 // print http request
-func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Time, uuid []byte, seq int32) {
+func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq int32) {
 	h.writeLine(fmt.Sprintf("\n### REQUEST #%d %s %s->%s %s",
-		seq, uuid, h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano)))
+		seq, uuid, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
 
 	o := h.option
 	if ss.AnyOf(o.Level, LevelL0, LevelUrl) {
-		h.writeLine(r.Method, r.Host+r.URL.Path)
+		h.writeLine(r.GetMethod(), r.GetHost()+r.GetPath())
 		return
 	}
 
-	h.writeLine(r.Method, r.RequestURI, r.Proto)
-	h.printHeader(r.Header)
+	h.writeLine(r.GetMethod(), r.GetRequestURI(), r.GetProto())
+	h.printHeader(r.GetHeader())
 
-	contentLength := parseContentLength(r.ContentLength, r.Header)
-	hasBody := contentLength != 0 && !ss.AnyOf(r.Method, "GET", "HEAD", "TRACE", "OPTIONS")
+	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
+	hasBody := contentLength != 0 && !ss.AnyOf(r.GetMethod(), "GET", "HEAD", "TRACE", "OPTIONS")
 
 	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "request", startTime)
-		if n, err := DumpBody(r.Body, fn, &o.dumpNum); err != nil {
+		if n, err := DumpBody(r.GetBody(), fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
 		} else if n > 0 {
 			h.writeLine("\n// dump body to file:", fn, "size:", n)
@@ -155,20 +164,20 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 
 	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
+			h.writeLine("\n// body size:", discardAll(r.GetBody()), ", set [level = all] to display http body")
 		}
 		return
 	}
 
 	if hasBody {
 		h.writeLine()
-		h.printBody(r.Header, r.Body)
+		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
 
 // print http response
-func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Time, uuid []byte, seq int32) {
-	defer discardAll(r.Body)
+func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, uuid []byte, seq int32) {
+	defer discardAll(r.GetBody())
 
 	o := h.option
 	if !o.Resp || o.Level == LevelUrl {
@@ -176,23 +185,23 @@ func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Ti
 	}
 
 	h.writeLine(fmt.Sprintf("\n### RESPONSE #%d %s %s<-%s %s",
-		seq, uuid, h.key.src, h.key.dst, endTime.Format(time.RFC3339Nano)))
+		seq, uuid, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano)))
 
-	h.writeLine(r.StatusLine)
+	h.writeLine(r.GetStatusLine())
 	if o.Level == LevelL0 {
 		return
 	}
 
-	for _, header := range r.RawHeaders {
+	for _, header := range r.GetRawHeaders() {
 		h.writeLine(header)
 	}
 
-	contentLength := parseContentLength(r.ContentLength, r.Header)
-	hasBody := contentLength > 0 && r.StatusCode != 304 && r.StatusCode != 204
+	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
+	hasBody := contentLength > 0 && r.GetStatusCode() != 304 && r.GetStatusCode() != 204
 
 	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "response", endTime)
-		if n, err := DumpBody(r.Body, fn, &o.dumpNum); err != nil {
+		if n, err := DumpBody(r.GetBody(), fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
 		} else if n > 0 {
 			h.writeLine("\n// dump body to file:", fn, "size:", n)
@@ -202,18 +211,18 @@ func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Ti
 
 	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
+			h.writeLine("\n// body size:", discardAll(r.GetBody()), ", set [level = all] to display http body")
 		}
 		return
 	}
 
 	if hasBody {
 		h.writeLine()
-		h.printBody(r.Header, r.Body)
+		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
 
-func parseContentLength(cl int64, header httpport.Header) int64 {
+func parseContentLength(cl int64, header http.Header) int64 {
 	contentLength := cl
 	if cl >= 0 {
 		return contentLength
