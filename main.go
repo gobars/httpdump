@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
+	"github.com/bingoohuang/gg/pkg/ctx"
 	"github.com/bingoohuang/gg/pkg/flagparse"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -58,25 +56,12 @@ func run(option *Option) error {
 	assembler.filterIP = option.Ip
 	assembler.filterPort = uint16(option.Port)
 
-	ctx := setupSignalProcess()
-	loop(ctx, packets, assembler, option.Idle)
+	c := ctx.RegisterSignals(nil)
+	loop(c, packets, assembler, option.Idle)
 
 	assembler.finishAll()
 	printer.finish()
 	return nil
-}
-
-func setupSignalProcess() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	sig := make(chan os.Signal, 1)
-	// syscall.SIGINT: ctl + c, syscall.SIGTERM: kill pid
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sig
-		cancel()
-	}()
-
-	return ctx
 }
 
 type Sender interface {
