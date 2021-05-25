@@ -130,7 +130,8 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 	h.writeLine(fmt.Sprintf("\n### REQUEST #%d %s %s->%s %s",
 		seq, uuid, h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano)))
 
-	if ss.AnyOf(h.option.Level, LevelL0, LevelUrl) {
+	o := h.option
+	if ss.AnyOf(o.Level, LevelL0, LevelUrl) {
 		h.writeLine(r.Method, r.Host+r.URL.Path)
 		return
 	}
@@ -138,13 +139,19 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 	h.writeLine(r.Method, r.RequestURI, r.Proto)
 	h.printHeader(r.Header)
 
-	hasBody := true
-	if r.ContentLength == 0 || r.Method == "GET" || r.Method == "HEAD" || r.Method == "TRACE" ||
-		r.Method == "OPTIONS" {
-		hasBody = false
+	hasBody := r.ContentLength > 0 && !ss.AnyOf(r.Method, "GET", "HEAD", "TRACE", "OPTIONS")
+
+	if hasBody && o.DumpBody != "" {
+		fn := bodyFileName(o.DumpBody, uuid, seq, "request", startTime)
+		h.writeLine("\n// dump body to file:", fn)
+
+		if err := WriteAllFromReader(fn, r.Body); err != nil {
+			h.writeLine("dump to file failed:", err)
+		}
+		return
 	}
 
-	if h.option.Level == LevelHeader {
+	if o.Level == LevelHeader {
 		if hasBody {
 			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
 		}
@@ -161,7 +168,8 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Time, uuid []byte, seq int32) {
 	defer discardAll(r.Body)
 
-	if !h.option.Resp || h.option.Level == LevelUrl {
+	o := h.option
+	if !o.Resp || o.Level == LevelUrl {
 		return
 	}
 
@@ -169,7 +177,7 @@ func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Ti
 		seq, uuid, h.key.src, h.key.dst, endTime.Format(time.RFC3339Nano)))
 
 	h.writeLine(r.StatusLine)
-	if h.option.Level == LevelL0 {
+	if o.Level == LevelL0 {
 		return
 	}
 
@@ -177,15 +185,20 @@ func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Ti
 		h.writeLine(header)
 	}
 
-	hasBody := true
-	if r.ContentLength == 0 || r.StatusCode == 304 || r.StatusCode == 204 {
-		hasBody = false
+	hasBody := r.ContentLength > 0 && r.StatusCode != 304 && r.StatusCode != 204
+
+	if hasBody && o.DumpBody != "" {
+		fn := bodyFileName(o.DumpBody, uuid, seq, "response", endTime)
+		h.writeLine("\n// dump body to file:", fn)
+		if err := WriteAllFromReader(fn, r.Body); err != nil {
+			h.writeLine("dump to file failed:", err)
+		}
+		return
 	}
 
-	if h.option.Level == LevelHeader {
+	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.Body),
-				", set [level = all] to display http body")
+			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
 		}
 		return
 	}

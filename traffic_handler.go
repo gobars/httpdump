@@ -241,14 +241,13 @@ var blockHeaders = map[string]bool{
 func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 
-	h.writeLine()
-	h.writeLine("### REQUEST ", h.key.srcString(), "->", h.key.dstString(), h.startTime.Format(time.RFC3339Nano))
+	h.writeLine("\n### REQUEST ", h.key.srcString(), "->", h.key.dstString(), h.startTime.Format(time.RFC3339Nano))
 	h.writeLineFormat("curl -X %v http://%v%v \\\n", req.Method, h.key.dstString(), req.RequestURI)
 	var reader io.ReadCloser
-	var deCompressed bool
-	if h.option.DumpBody {
+	deCompressed := false
+	o := h.option
+	if o.DumpBody != "" {
 		reader = req.Body
-		deCompressed = false
 	} else {
 		reader, deCompressed = tryDecompress(req.Header, req.Body)
 	}
@@ -281,8 +280,8 @@ func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request, uuid []byte
 		return
 	}
 
-	if h.option.DumpBody {
-		fn := bodyFileName(uuid, seq, "request", h.startTime)
+	if o.DumpBody != "" {
+		fn := bodyFileName(o.DumpBody, uuid, seq, "request", h.startTime)
 		h.writeLineFormat("    -d '@%v'", fn)
 
 		if err := WriteAllFromReader(fn, reader); err != nil {
@@ -333,10 +332,11 @@ type Counter struct {
 
 func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }
 
-// print http request
+// printNormalRequest prints http request.
 func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
-	if h.option.Level == LevelUrl {
+	o := h.option
+	if o.Level == LevelUrl {
 		h.writeLine(r.Method, r.Host+r.RequestURI)
 		return
 	}
@@ -347,14 +347,10 @@ func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte
 	h.writeLine(r.Method, r.RequestURI, r.Proto)
 	h.printHeader(r.Header)
 
-	hasBody := true
-	if r.ContentLength == 0 || ss.AnyOf(r.Method, "GET", "HEAD", "TRACE") ||
-		r.Method == "OPTIONS" {
-		hasBody = false
-	}
+	hasBody := r.ContentLength > 0 && !ss.AnyOf(r.Method, "GET", "HEAD", "TRACE", "OPTIONS")
 
-	if h.option.DumpBody {
-		fn := bodyFileName(uuid, seq, "request", h.startTime)
+	if hasBody && o.DumpBody != "" {
+		fn := bodyFileName(o.DumpBody, uuid, seq, "request", h.startTime)
 		h.writeLine("\n// dump body to file:", fn)
 
 		if err := WriteAllFromReader(fn, r.Body); err != nil {
@@ -363,67 +359,62 @@ func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte
 		return
 	}
 
-	if h.option.Level == LevelHeader {
+	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.Body),
-				", set [level = all] to display http body")
+			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
 		}
 		return
 	}
 
-	h.writeLine()
-
 	if hasBody {
+		h.writeLine()
 		h.printBody(r.Header, r.Body)
 	}
 }
 
 // print http response
-func (h *HttpTrafficHandler) printResponse(resp *httpport.Response, uuid []byte, seq int32) {
-	defer discardAll(resp.Body)
+func (h *HttpTrafficHandler) printResponse(r *httpport.Response, uuid []byte, seq int32) {
+	defer discardAll(r.Body)
 
-	if !h.option.Resp {
+	o := h.option
+	if !o.Resp {
 		return
 	}
 
-	if h.option.Level == LevelUrl {
-		return
-	}
-
-	h.writeLine(fmt.Sprintf("### RESPONSE #%d %s %s->%s %s-%s cost %s", seq,
+	h.writeLine(fmt.Sprintf("\n### RESPONSE #%d %s %s->%s %s-%s cost %s", seq,
 		uuid, h.key.src, h.key.dst, h.startTime.Format(time.RFC3339Nano),
 		h.endTime.Format(time.RFC3339Nano), h.endTime.Sub(h.startTime).String()))
+	h.writeLine(r.StatusLine)
 
-	h.writeLine(resp.StatusLine)
-	for _, header := range resp.RawHeaders {
+	if o.Level == LevelUrl {
+		return
+	}
+
+	for _, header := range r.RawHeaders {
 		h.writeLine(header)
 	}
 
-	hasBody := true
-	if resp.ContentLength == 0 || resp.StatusCode == 304 || resp.StatusCode == 204 {
-		hasBody = false
-	}
+	hasBody := r.ContentLength > 0 && r.StatusCode != 304 && r.StatusCode != 204
 
-	if h.option.DumpBody {
-		fn := bodyFileName(uuid, seq, "response", h.startTime)
+	if hasBody && o.DumpBody != "" {
+		fn := bodyFileName(o.DumpBody, uuid, seq, "response", h.startTime)
 		h.writeLine("\n// dump body to file:", fn)
-		if err := WriteAllFromReader(fn, resp.Body); err != nil {
+		if err := WriteAllFromReader(fn, r.Body); err != nil {
 			h.writeLine("dump to file failed:", err)
 		}
 		return
 	}
 
-	if h.option.Level == LevelHeader {
+	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(resp.Body),
-				", set [level = all] to display http body")
+			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
 		}
 		return
 	}
 
-	h.writeLine()
 	if hasBody {
-		h.printBody(resp.Header, resp.Body)
+		h.writeLine()
+		h.printBody(r.Header, r.Body)
 	}
 }
 
@@ -525,7 +516,13 @@ func discardAll(r io.Reader) (discarded int) {
 	return tcpreader.DiscardBytesToEOF(r)
 }
 
-func bodyFileName(uuid []byte, seq int32, req string, t time.Time) string {
+func bodyFileName(prefix string, uuid []byte, seq int32, req string, t time.Time) string {
 	timeStr := t.Format("20060102")
-	return fmt.Sprintf("%s.%d.%s.%s", timeStr, seq, uuid, req)
+	// parse id from uuid like id:a4af2382c0a6df1c6fb4280a,Seq:1874077706,Ack:2080684195
+	if f := bytes.IndexRune(uuid, ':'); f >= 0 {
+		if c := bytes.IndexRune(uuid[f:], ','); c >= 0 {
+			uuid = uuid[f+3 : f+c]
+		}
+	}
+	return fmt.Sprintf("%s.%s.%d.%s.%s", prefix, timeStr, seq, uuid, req)
 }

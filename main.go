@@ -33,7 +33,7 @@ type Option struct {
 	Status   Status        `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 	Force    bool          `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl     bool          `usage:"Output an equivalent curl command for each http request"`
-	DumpBody bool          `usage:"Dump http request/response body to file"`
+	DumpBody string        `usage:"Prefix file of dump http request/response body, empty for no dump"`
 	Fast     bool          `usage:"Fast mode, process request and response separately"`
 	Output   string        `usage:"Write result to file [output] instead of stdout"`
 	Idle     time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
