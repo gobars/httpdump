@@ -52,7 +52,11 @@ func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection)
 		startTime := c.lastReqTimestamp
 		if err != nil {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				h.sender.Send(fmt.Sprintf("\n### EOF   %s->%s %s",
+					h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano)))
 			} else {
+				h.sender.Send(fmt.Sprintf("\n### Err   %s->%s %s, error: %v",
+					h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano), err))
 				fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
 			}
 			break
