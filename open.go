@@ -8,20 +8,23 @@ import (
 	"log"
 	"net"
 	"os"
-	"runtime"
 	"strconv"
 )
 
-func createPacketsChan(input, host, ip string, port uint) (chan gopacket.Packet, error) {
+func createPacketsChan(input, bpf, host, ip string, port uint) (chan gopacket.Packet, error) {
 	if v, err := os.Stat(input); err == nil && !v.IsDir() {
 		var handle, err = pcap.OpenOffline(input) // read from pcap file
 		if err != nil {
 			return nil, fmt.Errorf("open file %v error: %w", input, err)
 		}
+		if err = setDeviceFilter(handle, bpf, ip, uint16(port)); err != nil {
+			return nil, fmt.Errorf("set filter %v error: %w", input, err)
+		}
+
 		return listenOneSource(handle), nil
 	}
 
-	if input == "any" && runtime.GOOS != "linux" {
+	if input == "any" && host != "" {
 		// capture all device
 		// Only linux 2.2+ support any interface. we have to list all network device and listened on them all
 		interfaces, err := ListInterfaces(host)
@@ -31,7 +34,7 @@ func createPacketsChan(input, host, ip string, port uint) (chan gopacket.Packet,
 
 		var packetsSlice = make([]chan gopacket.Packet, len(interfaces))
 		for _, itf := range interfaces {
-			localPackets, err := OpenSingleDevice(itf.Name, ip, uint16(port))
+			localPackets, err := OpenSingleDevice(itf.Name, bpf, ip, uint16(port))
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "open device", itf, "error:", err)
 				continue
@@ -47,10 +50,10 @@ func createPacketsChan(input, host, ip string, port uint) (chan gopacket.Packet,
 	}
 
 	// capture one device
-	return OpenSingleDevice(input, ip, uint16(port))
+	return OpenSingleDevice(input, bpf, ip, uint16(port))
 }
 
-func OpenSingleDevice(device string, filterIP string, filterPort uint16) (localPackets chan gopacket.Packet, err error) {
+func OpenSingleDevice(device, bpf, filterIP string, filterPort uint16) (localPackets chan gopacket.Packet, err error) {
 	defer func() {
 		if msg := recover(); msg != nil {
 			switch x := msg.(type) {
@@ -69,7 +72,7 @@ func OpenSingleDevice(device string, filterIP string, filterPort uint16) (localP
 		return
 	}
 
-	if err = setDeviceFilter(handle, filterIP, filterPort); err != nil {
+	if err = setDeviceFilter(handle, bpf, filterIP, filterPort); err != nil {
 		return
 	}
 	localPackets = listenOneSource(handle)
@@ -82,7 +85,11 @@ func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
 }
 
 // set packet capture filter, by ip and port
-func setDeviceFilter(handle *pcap.Handle, filterIP string, filterPort uint16) error {
+func setDeviceFilter(handle *pcap.Handle, bpf, filterIP string, filterPort uint16) error {
+	if bpf != "" {
+		return handle.SetBPFFilter(bpf)
+	}
+
 	var bpfFilter = "tcp"
 	if filterPort != 0 {
 		bpfFilter += " port " + strconv.Itoa(int(filterPort))

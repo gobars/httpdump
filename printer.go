@@ -63,7 +63,7 @@ func (p *Printer) printBackground() {
 }
 
 func (p *Printer) finish() {
+	p.queue <- fmt.Sprintf("\n#%d discarded", atomic.LoadUint32(&p.discarded))
 	close(p.queue)
 	p.wg.Wait()
-	fmt.Printf("\n#%d discarded", atomic.LoadUint32(&p.discarded))
 }
