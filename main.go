@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bingoohuang/gg/pkg/ctx"
@@ -33,15 +36,20 @@ type Option struct {
 	Status   Status        `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 	Force    bool          `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl     bool          `usage:"Output an equivalent curl command for each http request"`
-	DumpBody string        `usage:"Prefix file of dump http request/response body, empty for no dump"`
+	DumpBody string        `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
 	Fast     bool          `usage:"Fast mode, process request and response separately"`
 	Output   string        `usage:"Write result to file [output] instead of stdout"`
 	Idle     time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
+
+	dumpMax uint32
+	dumpNum uint32
 }
 
 func main() {
 	option := &Option{}
 	flagparse.Parse(option)
+	option.PostProcess()
+
 	if err := option.run(); err != nil {
 		panic(err)
 	}
@@ -82,6 +90,37 @@ func (o *Option) createConnectionHandler(sender Sender) ConnectionHandler {
 	}
 
 	return &HTTPConnectionHandler{option: o, sender: sender}
+}
+
+func (o *Option) PostProcess() {
+	o.processDumpBody()
+}
+
+func (o *Option) processDumpBody() {
+	if o.DumpBody == "" {
+		return
+	}
+
+	p := strings.Index(o.DumpBody, ":")
+	if p < 0 {
+		return
+	}
+
+	if v, err := strconv.Atoi(o.DumpBody[p+1:]); err == nil {
+		o.dumpMax = uint32(v)
+	}
+
+	if o.DumpBody = o.DumpBody[:p]; o.DumpBody == "" {
+		o.DumpBody = "dump"
+	}
+}
+
+func (o *Option) CanDump() bool {
+	if o.DumpBody == "" {
+		return false
+	}
+
+	return o.dumpMax <= 0 || atomic.LoadUint32(&o.dumpNum) < o.dumpMax
 }
 
 func loop(ctx context.Context, packets chan gopacket.Packet, assembler *TCPAssembler, idle time.Duration) {

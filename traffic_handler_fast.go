@@ -8,6 +8,7 @@ import (
 	"github.com/bingoohuang/httpdump/httpport"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -139,14 +140,15 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 	h.writeLine(r.Method, r.RequestURI, r.Proto)
 	h.printHeader(r.Header)
 
-	hasBody := r.ContentLength > 0 && !ss.AnyOf(r.Method, "GET", "HEAD", "TRACE", "OPTIONS")
+	contentLength := parseContentLength(r.ContentLength, r.Header)
+	hasBody := contentLength != 0 && !ss.AnyOf(r.Method, "GET", "HEAD", "TRACE", "OPTIONS")
 
-	if hasBody && o.DumpBody != "" {
+	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "request", startTime)
-		h.writeLine("\n// dump body to file:", fn)
-
-		if err := WriteAllFromReader(fn, r.Body); err != nil {
+		if n, err := DumpBody(r.Body, fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
+		} else if n > 0 {
+			h.writeLine("\n// dump body to file:", fn, "size:", n)
 		}
 		return
 	}
@@ -185,13 +187,15 @@ func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Ti
 		h.writeLine(header)
 	}
 
-	hasBody := r.ContentLength > 0 && r.StatusCode != 304 && r.StatusCode != 204
+	contentLength := parseContentLength(r.ContentLength, r.Header)
+	hasBody := contentLength > 0 && r.StatusCode != 304 && r.StatusCode != 204
 
-	if hasBody && o.DumpBody != "" {
+	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "response", endTime)
-		h.writeLine("\n// dump body to file:", fn)
-		if err := WriteAllFromReader(fn, r.Body); err != nil {
+		if n, err := DumpBody(r.Body, fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
+		} else if n > 0 {
+			h.writeLine("\n// dump body to file:", fn, "size:", n)
 		}
 		return
 	}
@@ -207,4 +211,17 @@ func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Ti
 		h.writeLine()
 		h.printBody(r.Header, r.Body)
 	}
+}
+
+func parseContentLength(cl int64, header httpport.Header) int64 {
+	contentLength := cl
+	if cl >= 0 {
+		return contentLength
+	}
+
+	if v := header.Get("Content-Length"); v != "" {
+		contentLength, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	return contentLength
 }

@@ -280,12 +280,12 @@ func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request, uuid []byte
 		return
 	}
 
-	if o.DumpBody != "" {
+	if o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "request", h.startTime)
-		h.writeLineFormat("    -d '@%v'", fn)
-
-		if err := WriteAllFromReader(fn, reader); err != nil {
+		if n, err := DumpBody(reader, fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
+		} else if n > 0 {
+			h.writeLineFormat(" -d '@%v'", fn)
 		}
 	} else {
 		br := bufio.NewReader(reader)
@@ -315,15 +315,21 @@ func (h *HttpTrafficHandler) printCurlRequest(req *httpport.Request, uuid []byte
 	h.writeLine()
 }
 
-// WriteAllFromReader write all data from a reader, to a file.
-func WriteAllFromReader(path string, r io.Reader) error {
+// DumpBody write all data from a reader, to a file.
+func DumpBody(r io.Reader, path string, u *uint32) (int64, error) {
 	f, err := os.Create(path)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	defer f.Close()
-	_, err = io.Copy(f, r)
-	return err
+
+	n, err := io.Copy(f, r)
+	if n <= 0 { // nothing to write, remove file
+		os.Remove(path)
+	} else {
+		atomic.AddUint32(u, 1)
+	}
+	f.Close()
+	return n, err
 }
 
 type Counter struct {
@@ -347,14 +353,15 @@ func (h *HttpTrafficHandler) printNormalRequest(r *httpport.Request, uuid []byte
 	h.writeLine(r.Method, r.RequestURI, r.Proto)
 	h.printHeader(r.Header)
 
-	hasBody := r.ContentLength > 0 && !ss.AnyOf(r.Method, "GET", "HEAD", "TRACE", "OPTIONS")
+	contentLength := parseContentLength(r.ContentLength, r.Header)
+	hasBody := contentLength > 0 && !ss.AnyOf(r.Method, "GET", "HEAD", "TRACE", "OPTIONS")
 
-	if hasBody && o.DumpBody != "" {
+	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "request", h.startTime)
-		h.writeLine("\n// dump body to file:", fn)
-
-		if err := WriteAllFromReader(fn, r.Body); err != nil {
+		if n, err := DumpBody(r.Body, fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
+		} else if n > 0 {
+			h.writeLine("\n// dump body to file:", fn, "size:", n)
 		}
 		return
 	}
@@ -394,13 +401,15 @@ func (h *HttpTrafficHandler) printResponse(r *httpport.Response, uuid []byte, se
 		h.writeLine(header)
 	}
 
-	hasBody := r.ContentLength > 0 && r.StatusCode != 304 && r.StatusCode != 204
+	contentLength := parseContentLength(r.ContentLength, r.Header)
+	hasBody := contentLength > 0 && r.StatusCode != 304 && r.StatusCode != 204
 
-	if hasBody && o.DumpBody != "" {
+	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, uuid, seq, "response", h.startTime)
-		h.writeLine("\n// dump body to file:", fn)
-		if err := WriteAllFromReader(fn, r.Body); err != nil {
+		if n, err := DumpBody(r.Body, fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
+		} else if n > 0 {
+			h.writeLine("\n// dump body to file:", fn, "size:", n)
 		}
 		return
 	}
@@ -521,7 +530,7 @@ func bodyFileName(prefix string, uuid []byte, seq int32, req string, t time.Time
 	// parse id from uuid like id:a4af2382c0a6df1c6fb4280a,Seq:1874077706,Ack:2080684195
 	if f := bytes.IndexRune(uuid, ':'); f >= 0 {
 		if c := bytes.IndexRune(uuid[f:], ','); c >= 0 {
-			uuid = uuid[f+3 : f+c]
+			uuid = uuid[f+1 : f+c]
 		}
 	}
 	return fmt.Sprintf("%s.%s.%d.%s.%s", prefix, timeStr, seq, uuid, req)
