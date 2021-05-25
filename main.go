@@ -11,9 +11,16 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+const (
+	LevelL0     = "l0"
+	LevelUrl    = "url"
+	LevelHeader = "header"
+	LevelAll    = "all"
+)
+
 // Option Command line options.
 type Option struct {
-	Level    string        `val:"header" usage:"Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body)"`
+	Level    string        `val:"header" usage:"Output level, options are: l1(first line) | url(only url) | header(http headers) | all(headers, and textuary http body)"`
 	Input    string        `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 	Ip       string        `usage:"Filter by ip, if either source or target ip is matched, the packet will be processed"`
 	Port     uint          `usage:"Filter by port, if either source or target port is matched, the packet will be processed."`

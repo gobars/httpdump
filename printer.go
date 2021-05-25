@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -11,23 +12,32 @@ import (
 // Printer output parsed http messages
 type Printer struct {
 	queue     chan string
-	writer    io.WriteCloser
+	writer    io.Writer
 	discarded uint32
 
-	wg sync.WaitGroup
+	wg     sync.WaitGroup
+	closer func()
 }
 
 func newPrinter(outputPath string) *Printer {
-	var err error
-	var w io.WriteCloser
-	if outputPath == "" {
-		w = os.Stdout
-	} else if w, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666); err != nil {
-		panic(err)
-	}
-	p := &Printer{queue: make(chan string, 4096), writer: w}
+	w, closer := createWriter(outputPath)
+	p := &Printer{queue: make(chan string, 4096), writer: w, closer: closer}
 	p.start()
 	return p
+}
+
+func createWriter(outputPath string) (io.Writer, func()) {
+	if outputPath == "" {
+		return os.Stdout, func() {}
+	}
+
+	w, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666)
+	if err != nil {
+		panic(err)
+	}
+
+	bw := bufio.NewWriter(w)
+	return bw, func() { bw.Flush(); w.Close() }
 }
 
 func (p *Printer) Send(msg string) {
@@ -44,8 +54,9 @@ func (p *Printer) start() {
 }
 
 func (p *Printer) printBackground() {
-	p.wg.Done()
-	defer p.writer.Close()
+	defer p.wg.Done()
+	defer p.closer()
+
 	for msg := range p.queue {
 		_, _ = p.writer.Write([]byte(msg))
 	}
@@ -54,5 +65,5 @@ func (p *Printer) printBackground() {
 func (p *Printer) finish() {
 	close(p.queue)
 	p.wg.Wait()
-	fmt.Printf("#%d discarded\n", atomic.LoadUint32(&p.discarded))
+	fmt.Printf("\n#%d discarded", atomic.LoadUint32(&p.discarded))
 }

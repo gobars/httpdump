@@ -336,7 +336,7 @@ func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }
 // print http request
 func (h *HttpTrafficHandler) printNormalRequest(req *httpport.Request, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
-	if h.option.Level == "url" {
+	if h.option.Level == LevelUrl {
 		h.writeLine(req.Method, req.Host+req.RequestURI)
 		return
 	}
@@ -365,7 +365,7 @@ func (h *HttpTrafficHandler) printNormalRequest(req *httpport.Request, uuid []by
 		return
 	}
 
-	if h.option.Level == "header" {
+	if h.option.Level == LevelHeader {
 		if hasBody {
 			h.writeLine("\n// body size:", discardAll(req.Body),
 				", set [level = all] to display http body")
@@ -388,7 +388,7 @@ func (h *HttpTrafficHandler) printResponse(uri string, resp *httpport.Response, 
 		return
 	}
 
-	if h.option.Level == "url" {
+	if h.option.Level == LevelUrl {
 		return
 	}
 
@@ -417,7 +417,7 @@ func (h *HttpTrafficHandler) printResponse(uri string, resp *httpport.Response, 
 		return
 	}
 
-	if h.option.Level == "header" {
+	if h.option.Level == LevelHeader {
 		if hasBody {
 			h.writeLine("\n// body size:", discardAll(resp.Body),
 				", set [level = all] to display http body")

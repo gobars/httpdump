@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/httpdump/httpport"
 	"io"
 	"os"
@@ -62,19 +63,22 @@ func (h *fastTrafficHandler) handleRequest(wg *sync.WaitGroup, c *TCPConnection)
 			break
 		}
 
-		filtered := o.Host != "" && !wildcardMatch(r.Host, o.Host) ||
-			o.Uri != "" && !wildcardMatch(r.RequestURI, o.Uri) ||
-			o.Method != "" && !strings.Contains(o.Method, r.Method)
-
-		if filtered {
-			discardAll(r.Body)
-			continue
-		}
-
-		seq := reqCounter.Incr()
-		h.printRequest(r, startTime, c.requestStream.LastUUID, seq)
-		h.sender.Send(h.buffer.String())
+		h.processRequest(r, c, o, startTime)
 	}
+}
+
+func (h *fastTrafficHandler) processRequest(r *httpport.Request, c *TCPConnection, o *Option, startTime time.Time) {
+	defer discardAll(r.Body)
+
+	if filtered := o.Host != "" && !wildcardMatch(r.Host, o.Host) ||
+		o.Uri != "" && !wildcardMatch(r.RequestURI, o.Uri) ||
+		o.Method != "" && !strings.Contains(o.Method, r.Method); filtered {
+		return
+	}
+
+	seq := reqCounter.Incr()
+	h.printRequest(r, startTime, c.requestStream.LastUUID, seq)
+	h.sender.Send(h.buffer.String())
 }
 
 var rspCounter = Counter{}
@@ -105,27 +109,31 @@ func (h *fastTrafficHandler) handleResponse(wg *sync.WaitGroup, c *TCPConnection
 			break
 		}
 
-		filtered := !IntSet(o.Status).Contains(r.StatusCode)
-
-		if filtered {
-			discardAll(r.Body)
-		} else {
-			seq := rspCounter.Incr()
-			h.printResponse(r, endTime, c.responseStream.LastUUID, seq)
-			h.sender.Send(h.buffer.String())
-		}
+		h.processResponse(r, c, o, endTime)
 	}
+}
+
+func (h *fastTrafficHandler) processResponse(r *httpport.Response, c *TCPConnection, o *Option, endTime time.Time) {
+	defer discardAll(r.Body)
+
+	if filtered := !IntSet(o.Status).Contains(r.StatusCode); filtered {
+		return
+	}
+
+	seq := rspCounter.Incr()
+	h.printResponse(r, endTime, c.responseStream.LastUUID, seq)
+	h.sender.Send(h.buffer.String())
 }
 
 // print http request
 func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Time, uuid []byte, seq int32) {
-	if h.option.Level == "url" {
-		h.writeLine(r.Method, r.Host+r.RequestURI)
-		return
-	}
-
 	h.writeLine(fmt.Sprintf("\n### REQUEST #%d %s %s->%s %s",
 		seq, uuid, h.key.src, h.key.dst, startTime.Format(time.RFC3339Nano)))
+
+	if ss.AnyOf(h.option.Level, LevelL0, LevelUrl) {
+		h.writeLine(r.Method, r.Host+r.URL.Path)
+		return
+	}
 
 	h.writeLine(r.Method, r.RequestURI, r.Proto)
 	h.printHeader(r.Header)
@@ -136,7 +144,7 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 		hasBody = false
 	}
 
-	if h.option.Level == "header" {
+	if h.option.Level == LevelHeader {
 		if hasBody {
 			h.writeLine("\n// body size:", discardAll(r.Body), ", set [level = all] to display http body")
 		}
@@ -153,7 +161,7 @@ func (h *fastTrafficHandler) printRequest(r *httpport.Request, startTime time.Ti
 func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Time, uuid []byte, seq int32) {
 	defer discardAll(r.Body)
 
-	if !h.option.Resp || h.option.Level == "url" {
+	if !h.option.Resp || h.option.Level == LevelUrl {
 		return
 	}
 
@@ -161,6 +169,10 @@ func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Ti
 		seq, uuid, h.key.src, h.key.dst, endTime.Format(time.RFC3339Nano)))
 
 	h.writeLine(r.StatusLine)
+	if h.option.Level == LevelL0 {
+		return
+	}
+
 	for _, header := range r.RawHeaders {
 		h.writeLine(header)
 	}
@@ -170,7 +182,7 @@ func (h *fastTrafficHandler) printResponse(r *httpport.Response, endTime time.Ti
 		hasBody = false
 	}
 
-	if h.option.Level == "header" {
+	if h.option.Level == LevelHeader {
 		if hasBody {
 			h.writeLine("\n// body size:", discardAll(r.Body),
 				", set [level = all] to display http body")
