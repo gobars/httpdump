@@ -275,7 +275,7 @@ func (s *NetworkStream) UUID(p *layers.TCP) []byte {
 		return uid
 	}
 
-	return []byte(fmt.Sprintf("id:%s,%s:%d=>%d,Seq:%d,Ack:%d", uid, l.ip, l.port, r.port, p.Seq, p.Ack))
+	return []byte(fmt.Sprintf("id:%s,Seq:%d,Ack:%d", uid, p.Seq, p.Ack))
 }
 
 func ip2int(v string) uint32 {
