@@ -66,7 +66,7 @@ func (r *TCPAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp t
 	}
 }
 
-// get connection this packet belong to; create new one if is new connection
+// retrieveConnection get connection this packet belong to; create new one if is new connection.
 func (r *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bool) *TCPConnection {
 	defer r.lock.LockDeferUnlock()()
 
@@ -79,13 +79,13 @@ func (r *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bo
 	return c
 }
 
-// remove connection (when is closed or timeout)
+// deleteConnection removes connection (when is closed or timeout).
 func (r *TCPAssembler) deleteConnection(key string) {
 	defer r.lock.LockDeferUnlock()()
 	delete(r.connections, key)
 }
 
-// flush timeout connections
+// FlushOlderThan flushes timeout connections.
 func (r *TCPAssembler) FlushOlderThan(time time.Time) {
 	var connections []*TCPConnection
 
@@ -106,8 +106,8 @@ func (r *TCPAssembler) FlushOlderThan(time time.Time) {
 func (r *TCPAssembler) FinishAll() {
 	defer r.lock.LockDeferUnlock()()
 
-	for _, connection := range r.connections {
-		connection.finish()
+	for _, c := range r.connections {
+		c.finish()
 	}
 	r.connections = nil
 	r.handler.finish()
@@ -152,42 +152,38 @@ func newTCPConnection(key string, src, dst Endpoint, chanSize uint) *TCPConnecti
 // when receive tcp packet
 func (c *TCPConnection) onReceive(src Endpoint, tcp *layers.TCP, timestamp time.Time) {
 	c.lastTimestamp = timestamp
-	payload := tcp.Payload
 	if !c.isHTTP {
-		// skip no-http data
-		if !isHTTPRequestData(payload) {
-			return
+		if !isHTTPRequestData(tcp.Payload) {
+			return // skip no-http data
 		}
 		// receive first valid http data packet
 		c.clientID = src
 		c.isHTTP = true
 	}
 
-	var sendStream, confirmStream *NetworkStream
+	var send, confirm *NetworkStream
 	if c.clientID.equals(src) {
-		sendStream = c.requestStream
-		confirmStream = c.responseStream
+		send = c.requestStream
+		confirm = c.responseStream
 		c.lastReqTimestamp = c.lastTimestamp
 	} else {
-		sendStream = c.responseStream
-		confirmStream = c.requestStream
+		send = c.responseStream
+		confirm = c.requestStream
 		c.lastRspTimestamp = c.lastTimestamp
 	}
 
-	sendStream.appendPacket(tcp)
+	send.appendPacket(tcp)
 
-	if tcp.SYN {
-		// do nothing
+	if tcp.SYN { /* do nothing*/
 	}
 
-	if tcp.ACK {
-		// confirm
-		confirmStream.confirmPacket(tcp.Ack)
+	if tcp.ACK { // confirm
+		confirm.confirmPacket(tcp.Ack)
 	}
 
 	// terminate c
 	if tcp.FIN || tcp.RST {
-		sendStream.closed = true
+		send.closed = true
 	}
 }
 
@@ -248,9 +244,7 @@ func (s *NetworkStream) confirmPacket(ack uint32) {
 	s.window.confirm(ack, s.c)
 }
 
-func (s *NetworkStream) finish() {
-	close(s.c)
-}
+func (s *NetworkStream) finish() { close(s.c) }
 
 // UUID returns the UUID of a TCP request and its response.
 func (s *NetworkStream) UUID(p *layers.TCP) []byte {
@@ -332,14 +326,12 @@ func (w *ReceiveWindow) destroy() {
 }
 
 func (w *ReceiveWindow) insert(packet *layers.TCP) {
-
-	if w.expectBegin != 0 && compareTCPSeq(w.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
-		// dropped
-		return
+	if len(packet.Payload) == 0 {
+		return //ignore empty data packet
 	}
 
-	if len(packet.Payload) == 0 { //ignore empty data packet
-		return
+	if w.expectBegin != 0 && compareTCPSeq(w.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
+		return // dropped
 	}
 
 	idx := w.size
@@ -347,12 +339,10 @@ func (w *ReceiveWindow) insert(packet *layers.TCP) {
 		index := (idx - 1 + w.start) % len(w.buffer)
 		prev := w.buffer[index]
 		result := compareTCPSeq(prev.Seq, packet.Seq)
-		if result == 0 {
-			// duplicated
+		if result == 0 { // duplicated
 			return
 		}
-		if result < 0 {
-			// insert at index
+		if result < 0 { // insert at index
 			break
 		}
 	}
@@ -361,12 +351,10 @@ func (w *ReceiveWindow) insert(packet *layers.TCP) {
 		w.expand()
 	}
 
-	if idx == w.size {
-		// append at last
+	if idx == w.size { // append at last
 		index := (idx + w.start) % len(w.buffer)
 		w.buffer[index] = packet
-	} else {
-		// insert at index
+	} else { // insert at index
 		for i := w.size - 1; i >= idx; i-- {
 			next := (i + w.start + 1) % len(w.buffer)
 			current := (i + w.start) % len(w.buffer)
@@ -385,8 +373,7 @@ func (w *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 	for ; idx < w.size; idx++ {
 		index := (idx + w.start) % len(w.buffer)
 		packet := w.buffer[index]
-		result := compareTCPSeq(packet.Seq, ack)
-		if result >= 0 {
+		if result := compareTCPSeq(packet.Seq, ack); result >= 0 {
 			break
 		}
 		w.buffer[index] = nil
