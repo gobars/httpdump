@@ -21,8 +21,7 @@ type TcpStdAssembler struct {
 }
 
 func (r *TcpStdAssembler) FinishAll() {
-	// blocked, ignore
-	// r.Assembler.FlushAll()
+	r.Assembler.FlushAll()
 }
 func (r *TcpStdAssembler) FlushOlderThan(time time.Time) { r.Assembler.FlushOlderThan(time) }
 
@@ -64,13 +63,13 @@ func (f *Factory) New(netFlow, tcpFlow gopacket.Flow) tcpassembly.Stream {
 
 func (f *Factory) run(key *streamKey, reader *tcpreader.ReaderStream) {
 	buf := bufio.NewReader(reader)
-	if peek, _ := buf.Peek(5); string(peek) == "HTTP/" {
+	if peek, _ := buf.Peek(8); string(peek[:5]) == "HTTP/" {
 		f.runResponses(key, buf)
-	} else {
+	} else if isHTTPRequestData(peek) {
 		f.runRequests(key, buf)
 	}
 
-	reader.Close()
+	_, _ = io.Copy(io.Discard, reader)
 }
 
 type HttpRsp struct {

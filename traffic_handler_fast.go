@@ -59,9 +59,11 @@ func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse stri
 	k := h.key
 	tim := t.Format(time.RFC3339Nano)
 	if IsEOF(err) {
-		h.sender.Send(fmt.Sprintf("\n### EOF %s %s->%s %s", requestOrResponse, k.Src(), k.Dst(), tim))
+		msg := fmt.Sprintf("\n### EOF %s %s->%s %s", requestOrResponse, k.Src(), k.Dst(), tim)
+		h.sender.Send(msg, false)
 	} else {
-		h.sender.Send(fmt.Sprintf("\n### ERR %s %s->%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err))
+		msg := fmt.Sprintf("\n### ERR %s %s->%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err)
+		h.sender.Send(msg, false)
 		fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
 	}
 }
@@ -88,7 +90,7 @@ func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime ti
 
 	seq := reqCounter.Incr()
 	h.printRequest(r, startTime, uuid, seq)
-	h.sender.Send(h.buffer.String())
+	h.sender.Send(h.buffer.String(), true)
 }
 
 var rspCounter = Counter{}
@@ -129,7 +131,7 @@ func (h *HandlerBase) processResponse(r Rsp, uuid []byte, o *Option, endTime tim
 
 	seq := rspCounter.Incr()
 	h.printResponse(r, endTime, uuid, seq)
-	h.sender.Send(h.buffer.String())
+	h.sender.Send(h.buffer.String(), true)
 }
 
 // print http request

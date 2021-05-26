@@ -442,7 +442,7 @@ func isHTTPRequestData(body []byte) bool {
 	if len(body) < 8 {
 		return false
 	}
-	data := body[0:8]
+	data := body[:8]
 	idx := bytes.IndexByte(data, byte(' '))
 	if idx < 0 {
 		return false

@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"github.com/bingoohuang/gg/pkg/man"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,42 +24,47 @@ type Printer struct {
 }
 
 func newPrinter(ctx context.Context, outputPath string, outChanSize uint) *Printer {
-	w, closer := createWriter(outputPath)
+	s := strings.ReplaceAll(outputPath, ":append", "")
+	appendMode := s != outputPath
+	maxSize := uint64(0)
+	if pos := strings.LastIndex(s, ":"); pos > 0 {
+		maxSize, _ = man.ParseBytes(s[pos+1:])
+		s = s[:pos]
+	}
+
+	w, closer := createWriter(s, maxSize, appendMode)
 	p := &Printer{queue: make(chan string, outChanSize), writer: w, closer: closer}
 	p.delayDiscarded = NewDelayChan(ctx, func(v interface{}) {
-		p.trySend(fmt.Sprintf("\n Discarded: %d\n", v.(uint32)))
+		p.Send(fmt.Sprintf("\n discarded: %d\n", v.(uint32)), false)
 	}, 10*time.Second)
 	p.start(ctx)
 	return p
 }
 
-func createWriter(outputPath string) (io.Writer, func()) {
+func createWriter(outputPath string, maxSize uint64, append bool) (io.Writer, func()) {
 	if outputPath == "" {
 		return os.Stdout, func() {}
 	}
 
-	w, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666)
-	if err != nil {
-		panic(err)
-	}
-
-	bw := bufio.NewWriter(w)
-	return bw, func() { bw.Flush(); w.Close() }
+	bw := NewRotateFileWriter(outputPath, maxSize, append)
+	return bw, func() { bw.Close() }
 }
 
-func (p *Printer) trySend(msg string) {
+func (p *Printer) Send(msg string, countDiscards bool) {
+	defer func() {
+		recover()
+	}()
+	if msg == "" {
+		return
+	}
+
 	select {
 	case p.queue <- msg:
 	default:
-	}
-}
-
-func (p *Printer) Send(msg string) {
-	select {
-	case p.queue <- msg:
-	default:
-		discarded := atomic.AddUint32(&p.discarded, 1)
-		p.delayDiscarded.Put(discarded)
+		if countDiscards {
+			discarded := atomic.AddUint32(&p.discarded, 1)
+			p.delayDiscarded.Put(discarded)
+		}
 	}
 }
 
@@ -70,6 +76,8 @@ func (p *Printer) start(ctx context.Context) {
 func (p *Printer) printBackground(ctx context.Context) {
 	defer p.wg.Done()
 	defer p.closer()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -78,6 +86,11 @@ func (p *Printer) printBackground(ctx context.Context) {
 				return
 			}
 			_, _ = p.writer.Write([]byte(msg))
+			ticker.Reset(1 * time.Second)
+		case <-ticker.C:
+			if f, ok := p.writer.(Flusher); ok {
+				f.Flush()
+			}
 		case <-ctx.Done():
 			return
 		}

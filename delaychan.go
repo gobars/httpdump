@@ -6,7 +6,7 @@ import (
 )
 
 func NewDelayChan(ctx context.Context, fn func(interface{}), delay time.Duration) *DelayChan {
-	d := &DelayChan{fn: fn}
+	d := &DelayChan{C: make(chan interface{}, 1), fn: fn}
 	go d.run(ctx, delay)
 	return d
 }

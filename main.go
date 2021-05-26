@@ -40,7 +40,7 @@ type Option struct {
 	Curl     bool          `usage:"Output an equivalent curl command for each http request"`
 	DumpBody string        `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
 	Mode     string        `val:"fast" usage:"std/fast/pair"`
-	Output   string        `usage:"Write result to file [output] instead of stdout"`
+	Output   string        `usage:"File to write result, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m specified max size, suffix :append specified append mode"`
 	Idle     time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
 
 	dumpMax uint32
@@ -67,7 +67,7 @@ func (o *Option) run() error {
 		return err
 	}
 
-	c := ctx.RegisterSignals(nil)
+	c, _ := ctx.RegisterSignals(nil)
 	printer := newPrinter(c, o.Output, o.OutChan)
 
 	var assembler Assembler
@@ -96,7 +96,7 @@ func createTcpAssembler(c context.Context, o *Option, printer *Printer) *TcpStdA
 }
 
 type Sender interface {
-	Send(msg string)
+	Send(msg string, countDiscards bool)
 }
 
 func (o *Option) createConnectionHandler(sender Sender) ConnectionHandler {

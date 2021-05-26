@@ -136,7 +136,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			} else {
 				h.printRequest(r, c.requestStream.LastUUID, seqFn())
 				h.writeLine("")
-				h.sender.Send(h.buffer.String())
+				h.sender.Send(h.buffer.String(), true)
 			}
 			break
 		}
@@ -152,7 +152,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			h.endTime = c.lastTimestamp
 
 			h.printResponse(resp, c.responseStream.LastUUID, seqFn())
-			h.sender.Send(h.buffer.String())
+			h.sender.Send(h.buffer.String(), true)
 		}
 
 		if websocket {
@@ -184,7 +184,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 					discardAll(resp.Body)
 				} else {
 					h.printResponse(resp, c.responseStream.LastUUID, seqFn())
-					h.sender.Send(h.buffer.String())
+					h.sender.Send(h.buffer.String(), true)
 				}
 			} else if resp.StatusCode == 417 {
 
@@ -192,7 +192,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 		}
 	}
 
-	h.sender.Send(h.buffer.String())
+	h.sender.Send(h.buffer.String(), true)
 }
 
 func (h *HttpTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
