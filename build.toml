@@ -1,0 +1,24 @@
+#gossh -c testdata/b.toml
+#printConfig = true
+#passphrase="xxxx"
+
+hosts = [
+    "192.168.126.182 footstone/{PBE}BX6qwkwV8yF-dBwoM4K7P4qK4ege4mhz"
+]
+
+# exec mode(0: cmd by cmd, 1 host by host)
+execMode = 0
+cmdTimeout = "30s"
+# 全部命令都默认成远程执行，相当于自动添加了%host标识。
+globalRemote = true
+
+cmds = [
+    "%local basename $PWD => @App",
+    "%local make targz",
+    "rm -fr bingoohuang/@App*",
+    "%ul ../@App.tar.gz bingoohuang/",
+    "cd bingoohuang && tar zxf @App.tar.gz && cd @App",
+    "go16 install -ldflags=\"-s -w\" ./...",
+    "upx --best --lzma  `which @App`",
+    "@App -v",
+]

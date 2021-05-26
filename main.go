@@ -35,6 +35,7 @@ type Option struct {
 	Uri      string        `usage:"Filter by request url path, using wildcard match(*, ?)"`
 	Method   string        `usage:"Filter by request method, multiple by comma"`
 	Resp     bool          `usage:"Print response or not"`
+	Version  bool          `flag:"v" usage:"Print version info and exit"`
 	Status   Status        `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 	Force    bool          `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl     bool          `usage:"Output an equivalent curl command for each http request"`
@@ -46,6 +47,8 @@ type Option struct {
 	dumpMax uint32
 	dumpNum uint32
 }
+
+func (Option) VersionInfo() string { return "httpdump v1.0.0 2021-05-26 17:15:20" }
 
 func main() {
 	option := &Option{}

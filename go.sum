@@ -1,5 +1,5 @@
-github.com/bingoohuang/gg v0.0.0-20210526033919-f5e62b88b64b h1:sG2ZvFyNzqiWIgKhr70FdvEQq+dml5ERa4tK+unD0hY=
-github.com/bingoohuang/gg v0.0.0-20210526033919-f5e62b88b64b/go.mod h1:kKNUAtRrABOvh5ztjh9Q5qtJBkx0sxwCHBQDBgWPhbw=
+github.com/bingoohuang/gg v0.0.0-20210526092825-31ec5c3bdb7c h1:/ReIa1DHmo1px4IT3RbbIXBzrophTfKLkyAtqlBnesY=
+github.com/bingoohuang/gg v0.0.0-20210526092825-31ec5c3bdb7c/go.mod h1:kKNUAtRrABOvh5ztjh9Q5qtJBkx0sxwCHBQDBgWPhbw=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
