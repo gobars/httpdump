@@ -59,9 +59,9 @@ func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse stri
 	k := h.key
 	tim := t.Format(time.RFC3339Nano)
 	if IsEOF(err) {
-		h.sender.Send(fmt.Sprintf("\n### EOF   %s->%s %s", k.Src(), k.Dst(), tim))
+		h.sender.Send(fmt.Sprintf("\n### EOF %s %s->%s %s", requestOrResponse, k.Src(), k.Dst(), tim))
 	} else {
-		h.sender.Send(fmt.Sprintf("\n### Err   %s->%s %s, error: %v", k.Src(), k.Dst(), tim, err))
+		h.sender.Send(fmt.Sprintf("\n### ERR %s %s->%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err))
 		fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
 	}
 }

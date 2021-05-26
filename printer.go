@@ -73,7 +73,10 @@ func (p *Printer) printBackground(ctx context.Context) {
 
 	for {
 		select {
-		case msg := <-p.queue:
+		case msg, ok := <-p.queue:
+			if !ok {
+				return
+			}
 			_, _ = p.writer.Write([]byte(msg))
 		case <-ctx.Done():
 			return

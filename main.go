@@ -57,17 +57,6 @@ func main() {
 	}
 }
 
-type TcpStdAssembler struct {
-	*tcpassembly.Assembler
-}
-
-func (r *TcpStdAssembler) FinishAll()                    { r.Assembler.FlushAll() }
-func (r *TcpStdAssembler) FlushOlderThan(time time.Time) { r.Assembler.FlushOlderThan(time) }
-
-func (r *TcpStdAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
-	r.Assembler.AssembleWithTimestamp(flow, tcp, timestamp)
-}
-
 func (o *Option) run() error {
 	if o.Port > 65536 {
 		return fmt.Errorf("ignored invalid port %v", o.Port)
@@ -79,15 +68,13 @@ func (o *Option) run() error {
 	}
 
 	c := ctx.RegisterSignals(nil)
-
 	printer := newPrinter(c, o.Output, o.OutChan)
 
 	var assembler Assembler
 
 	switch o.Mode {
 	case "fast", "pair":
-		handler := o.createConnectionHandler(printer)
-		a := newTCPAssembler(handler)
+		a := newTCPAssembler(o.createConnectionHandler(printer))
 		a.chanSize = o.Chan
 		a.filterIP = o.Ip
 		a.filterPort = uint16(o.Port)

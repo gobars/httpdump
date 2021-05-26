@@ -6,9 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/gopacket/layers"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/google/gopacket"
@@ -16,10 +16,23 @@ import (
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
+type TcpStdAssembler struct {
+	*tcpassembly.Assembler
+}
+
+func (r *TcpStdAssembler) FinishAll() {
+	// blocked, ignore
+	// r.Assembler.FlushAll()
+}
+func (r *TcpStdAssembler) FlushOlderThan(time time.Time) { r.Assembler.FlushOlderThan(time) }
+
+func (r *TcpStdAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
+	r.Assembler.AssembleWithTimestamp(flow, tcp, timestamp)
+}
+
 type Factory struct {
 	option *Option
 	sender Sender
-	wg     sync.WaitGroup
 	ctx    context.Context
 }
 
@@ -31,8 +44,8 @@ type streamKey struct {
 	net, tcp gopacket.Flow
 }
 
-func (k streamKey) Src() string { return fmt.Sprintf("%v:%v}", k.net.Src(), k.tcp.Src()) }
-func (k streamKey) Dst() string { return fmt.Sprintf("{%v:%v}", k.net.Dst(), k.tcp.Dst()) }
+func (k streamKey) Src() string { return fmt.Sprintf("%v:%v", k.net.Src(), k.tcp.Src()) }
+func (k streamKey) Dst() string { return fmt.Sprintf("%v:%v", k.net.Dst(), k.tcp.Dst()) }
 
 func (k streamKey) String() string { // like {192.168.217.54:53933} -> {192.168.126.182:9090}
 	return fmt.Sprintf("{%v:%v} -> {%v:%v}", k.net.Src(), k.tcp.Src(), k.net.Dst(), k.tcp.Dst())
@@ -45,20 +58,19 @@ func (f *Factory) New(netFlow, tcpFlow gopacket.Flow) tcpassembly.Stream {
 
 	reader := tcpreader.NewReaderStream()
 	reader.LossErrors = true
-	f.wg.Add(1)
 	go f.run(key, &reader)
 	return &reader
 }
 
 func (f *Factory) run(key *streamKey, reader *tcpreader.ReaderStream) {
-	defer f.wg.Done()
-
 	buf := bufio.NewReader(reader)
 	if peek, _ := buf.Peek(5); string(peek) == "HTTP/" {
 		f.runResponses(key, buf)
 	} else {
 		f.runRequests(key, buf)
 	}
+
+	reader.Close()
 }
 
 type HttpRsp struct {

@@ -102,7 +102,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 		r, err := httpport.ReadRequest(requestReader)
 		h.startTime = c.lastTimestamp
 		if err != nil {
-			if err != io.EOF {
+			if !IsEOF(err) {
 				fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
 			}
 			break
