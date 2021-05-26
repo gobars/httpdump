@@ -131,3 +131,8 @@ httpdump -ip 101.201.170.152 # filter by ip
 httpdump -ip 101.201.170.152 -port 80 # filter by ip and port
 ```
 
+## Help
+
+抓取到指定IP端口的请求及相应的bpf
+
+`httpdump -bpf "tcp and ((dst host 192.168.1.1 and dst port 5003) or (src host 192.168.1.1 and src port 5003))"  -method POST`
