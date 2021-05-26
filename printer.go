@@ -47,7 +47,7 @@ func createWriter(outputPath string, maxSize uint64, append bool) (io.Writer, fu
 	}
 
 	bw := NewRotateFileWriter(outputPath, maxSize, append)
-	return bw, func() { bw.Close() }
+	return bw, func() { _ = bw.Close() }
 }
 
 func (p *Printer) Send(msg string, countDiscards bool) {
@@ -89,7 +89,7 @@ func (p *Printer) printBackground(ctx context.Context) {
 			ticker.Reset(1 * time.Second)
 		case <-ticker.C:
 			if f, ok := p.writer.(Flusher); ok {
-				f.Flush()
+				_ = f.Flush()
 			}
 		case <-ctx.Done():
 			return

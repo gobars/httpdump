@@ -60,7 +60,7 @@ func (w *RotateFileWriter) Write(p []byte) (int, error) {
 }
 
 func (w *RotateFileWriter) openFile(fn string) (err error) {
-	w.Close()
+	_ = w.Close()
 
 	w.file, err = os.OpenFile(fn, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0660)
 	if err != nil {
@@ -85,8 +85,8 @@ func (w *RotateFileWriter) Flush() error {
 }
 func (w *RotateFileWriter) Close() error {
 	if w.writer != nil && w.file != nil {
-		w.writer.Flush()
-		w.file.Close()
+		_ = w.writer.Flush()
+		_ = w.file.Close()
 		w.currentSize = 0
 		w.writer = nil
 		w.file = nil
