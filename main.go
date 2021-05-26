@@ -80,7 +80,7 @@ func (o *Option) run() error {
 
 	c := ctx.RegisterSignals(nil)
 
-	printer := newPrinter(o.Output, o.OutChan)
+	printer := newPrinter(c, o.Output, o.OutChan)
 
 	var assembler Assembler
 

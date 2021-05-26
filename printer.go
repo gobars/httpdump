@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Printer output parsed http messages
@@ -15,14 +17,18 @@ type Printer struct {
 	writer    io.Writer
 	discarded uint32
 
-	wg     sync.WaitGroup
-	closer func()
+	wg             sync.WaitGroup
+	closer         func()
+	delayDiscarded *DelayChan
 }
 
-func newPrinter(outputPath string, outChanSize uint) *Printer {
+func newPrinter(ctx context.Context, outputPath string, outChanSize uint) *Printer {
 	w, closer := createWriter(outputPath)
 	p := &Printer{queue: make(chan string, outChanSize), writer: w, closer: closer}
-	p.start()
+	p.delayDiscarded = NewDelayChan(ctx, func(v interface{}) {
+		p.trySend(fmt.Sprintf("\n Discarded: %d\n", v.(uint32)))
+	}, 10*time.Second)
+	p.start(ctx)
 	return p
 }
 
@@ -40,25 +46,38 @@ func createWriter(outputPath string) (io.Writer, func()) {
 	return bw, func() { bw.Flush(); w.Close() }
 }
 
+func (p *Printer) trySend(msg string) {
+	select {
+	case p.queue <- msg:
+	default:
+	}
+}
+
 func (p *Printer) Send(msg string) {
 	select {
 	case p.queue <- msg:
 	default:
-		atomic.AddUint32(&p.discarded, 1)
+		discarded := atomic.AddUint32(&p.discarded, 1)
+		p.delayDiscarded.Put(discarded)
 	}
 }
 
-func (p *Printer) start() {
+func (p *Printer) start(ctx context.Context) {
 	p.wg.Add(1)
-	go p.printBackground()
+	go p.printBackground(ctx)
 }
 
-func (p *Printer) printBackground() {
+func (p *Printer) printBackground(ctx context.Context) {
 	defer p.wg.Done()
 	defer p.closer()
 
-	for msg := range p.queue {
-		_, _ = p.writer.Write([]byte(msg))
+	for {
+		select {
+		case msg := <-p.queue:
+			_, _ = p.writer.Write([]byte(msg))
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
