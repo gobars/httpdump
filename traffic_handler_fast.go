@@ -47,7 +47,7 @@ func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 		r, err := httpport.ReadRequest(rr)
 		startTime := c.lastReqTimestamp
 		if err != nil {
-			h.handleError(err, startTime)
+			h.handleError(err, startTime, "request")
 			break
 		}
 
@@ -55,14 +55,14 @@ func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 	}
 }
 
-func (h *HandlerBase) handleError(err error, startTime time.Time) {
+func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse string) {
+	k := h.key
+	tim := t.Format(time.RFC3339Nano)
 	if IsEOF(err) {
-		h.sender.Send(fmt.Sprintf("\n### EOF   %s->%s %s",
-			h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
+		h.sender.Send(fmt.Sprintf("\n### EOF   %s->%s %s", k.Src(), k.Dst(), tim))
 	} else {
-		h.sender.Send(fmt.Sprintf("\n### Err   %s->%s %s, error: %v",
-			h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano), err))
-		fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
+		h.sender.Send(fmt.Sprintf("\n### Err   %s->%s %s, error: %v", k.Src(), k.Dst(), tim, err))
+		fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
 	}
 }
 
@@ -112,10 +112,7 @@ func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 		r, err := httpport.ReadResponse(rr, nil)
 		endTime := c.lastRspTimestamp
 		if err != nil {
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-			} else {
-				fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, c.clientID)
-			}
+			h.handleError(err, endTime, "response")
 			break
 		}
 

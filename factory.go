@@ -102,7 +102,7 @@ func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
 		r, err := http.ReadResponse(buf, nil)
 		if err != nil {
-			h.handleError(err, now)
+			h.handleError(err, now, "response")
 			return
 		}
 
@@ -121,8 +121,8 @@ func (f *Factory) runRequests(key *streamKey, buf *bufio.Reader) {
 		now := time.Now()
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
 		r, err := http.ReadRequest(buf)
-		if IsEOF(err) {
-			h.handleError(err, now)
+		if err != nil {
+			h.handleError(err, now, "request")
 			return
 		}
 
