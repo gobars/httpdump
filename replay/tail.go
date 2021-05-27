@@ -3,22 +3,22 @@ package replay
 import (
 	"context"
 	"fmt"
-	"github.com/bingoohuang/http-replay/pkg/globpath"
+	"github.com/bingoohuang/httpdump/globpath"
 	"github.com/influxdata/tail"
 	"golang.org/x/sync/errgroup"
 	"log"
-	"strings"
 	"sync"
 	"time"
 )
 
 type Tail struct {
-	filepath, watchMethod string
-	fromBeginning         bool
-	options               *Options
+	filepath      string
+	fromBeginning bool
+	options       *Options
 
 	wg    sync.WaitGroup
 	lines chan []byte
+	poll  bool
 }
 
 func (t *Tail) TailPayloads(ctx context.Context) error {
@@ -75,7 +75,7 @@ func (t *Tail) tailNewFiles(ctx context.Context, tailers map[string]*tail.Tail, 
 				Follow:    true,
 				Location:  seek,
 				MustExist: true,
-				Poll:      strings.HasSuffix(t.watchMethod, "p"), // poll
+				Poll:      t.poll, // poll
 				Pipe:      false,
 				Logger:    tail.DiscardingLogger,
 			})

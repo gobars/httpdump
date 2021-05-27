@@ -22,18 +22,26 @@ type Config struct {
 	Timeout        time.Duration
 	RedirectLimit  int
 	InsecureVerify bool
-	Tail           string
+	Poll           bool
 }
 
-func (c Config) StartReplay(ctx context.Context, payloadCh <-chan string) error {
+func (c *Config) StartReplay(ctx context.Context, payloadCh <-chan string) error {
 	options := c.createParseOptions()
 
 	if c.File != "" {
+		file := strings.ReplaceAll(c.File, ":tail", "")
+		tail := file != c.File
+		c.File = file
+
+		file = strings.ReplaceAll(c.File, ":poll", "")
+		c.Poll = file != c.File
+		c.File = file
+
 		if dir, e := os.Stat(c.File); e == nil && dir.IsDir() {
 			return c.processDir(options)
 		}
 
-		if c.Tail != "" {
+		if tail {
 			return c.processTail(ctx, options)
 		}
 
@@ -52,7 +60,7 @@ func (c Config) StartReplay(ctx context.Context, payloadCh <-chan string) error 
 func (c *Config) processTail(ctx context.Context, parseOptions *Options) error {
 	t := &Tail{
 		filepath:      c.File,
-		watchMethod:   c.Tail,
+		poll:          c.Poll,
 		fromBeginning: false,
 		options:       parseOptions,
 	}

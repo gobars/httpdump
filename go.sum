@@ -1,8 +1,5 @@
-github.com/bingoohuang/gg v0.0.0-20210525003524-9e7987e1dac3/go.mod h1:kKNUAtRrABOvh5ztjh9Q5qtJBkx0sxwCHBQDBgWPhbw=
 github.com/bingoohuang/gg v0.0.0-20210527083005-d26f087a7232 h1:DbHcPG4qqyGzoB0dxN8nDBE6ysNCB02j2JiXIzHKXHQ=
 github.com/bingoohuang/gg v0.0.0-20210527083005-d26f087a7232/go.mod h1:kKNUAtRrABOvh5ztjh9Q5qtJBkx0sxwCHBQDBgWPhbw=
-github.com/bingoohuang/http-replay v0.0.0-20210525024927-3704d926f983 h1:0V343OvkEVYZl76FK/bRLS44L0UuHTsr7jcKcfsmujs=
-github.com/bingoohuang/http-replay v0.0.0-20210525024927-3704d926f983/go.mod h1:cIlwRcZ4hqvAU9oazItmoDYcJNgdhdzo8x+D2eiLm7Q=
 github.com/bmatcuk/doublestar/v3 v3.0.0 h1:TQtVPlDnAYwcrVNB2JiGuMc++H5qzWZd9PhkNo5WyHI=
 github.com/bmatcuk/doublestar/v3 v3.0.0/go.mod h1:6PcTVMw80pCY1RVuoqu3V++99uQB3vsSYKPTd8AWA0k=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
