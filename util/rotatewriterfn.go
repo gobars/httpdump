@@ -44,9 +44,13 @@ func NewRotateFileWriter(filenameTemplate string, maxSize uint64, append bool) *
 func (w *RotateFileWriter) Write(p []byte) (int, error) {
 	newFn := NewFilename(w.FnTemplate)
 
-	if fn := RotateFilename(newFn, w.rotateFunc()); fn != w.currentFn {
-		if err := w.openFile(fn); err != nil {
-			return 0, err
+	for {
+		if fn := RotateFilename(newFn, w.rotateFunc()); fn != w.currentFn {
+			if shouldRotate, err := w.openFile(fn); err != nil {
+				return 0, err
+			} else if !shouldRotate {
+				break
+			}
 		}
 	}
 
@@ -55,22 +59,24 @@ func (w *RotateFileWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func (w *RotateFileWriter) openFile(fn string) (err error) {
+func (w *RotateFileWriter) openFile(fn string) (rotate bool, err error) {
 	_ = w.Close()
 
 	w.file, err = os.OpenFile(fn, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0660)
 	if err != nil {
-		return err
+		return rotate, err
 	}
 
 	w.currentFn = fn
 	w.writer = bufio.NewWriter(w.file)
 
 	if stat, _ := w.file.Stat(); stat != nil {
-		w.currentSize = uint64(stat.Size())
+		if w.currentSize = uint64(stat.Size()); w.currentSize > 0 {
+			rotate = w.rotateFunc()
+		}
 	}
 
-	return nil
+	return rotate, nil
 }
 
 type Flusher interface {
