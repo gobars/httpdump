@@ -26,7 +26,7 @@ const (
 
 // Option Command line options.
 type Option struct {
-	Level string `val:"header" usage:"Output level, l1: first line, url: only url, header: http headers, all: headers and text http body"`
+	Level string `val:"all" usage:"Output level, l1: first line, url: only url, header: http headers, all: headers and text http body"`
 
 	Input string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 
