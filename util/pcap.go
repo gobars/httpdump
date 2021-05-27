@@ -1,17 +1,54 @@
-package main
+package util
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"log"
 	"net"
 	"os"
 	"strconv"
+	"time"
 )
 
-func createPacketsChan(input, bpf, host, ip string, port uint) (chan gopacket.Packet, error) {
+type Assembler interface {
+	Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time)
+	FlushOlderThan(time time.Time)
+	FinishAll()
+}
+
+func LoopPackets(ctx context.Context, packets chan gopacket.Packet, assembler Assembler, idle time.Duration) {
+	ticker := time.NewTicker(time.Second * 10)
+	defer ticker.Stop()
+	defer assembler.FinishAll()
+
+	for {
+		select {
+		case p := <-packets:
+			if p == nil { // A nil p indicates the end of a pcap file.
+				return
+			}
+
+			// only assembly tcp/ip packets
+			n, t := p.NetworkLayer(), p.TransportLayer()
+			if n == nil || t == nil || t.LayerType() != layers.LayerTypeTCP {
+				continue
+			}
+
+			assembler.Assemble(n.NetworkFlow(), t.(*layers.TCP), p.Metadata().Timestamp)
+		case <-ticker.C:
+			// flush connections that haven't been activity in the idle time
+			assembler.FlushOlderThan(time.Now().Add(-idle))
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func CreatePacketsChan(input, bpf, host, ip string, port uint) (chan gopacket.Packet, error) {
 	if v, err := os.Stat(input); err == nil && !v.IsDir() {
 		var handle, err = pcap.OpenOffline(input) // read from pcap file
 		if err != nil {

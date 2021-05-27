@@ -112,7 +112,7 @@ func (h *HttpTrafficHandlerPair) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			break
 		}
 
-		filtered = filtered || !IntSet(o.Status).Contains(resp.StatusCode)
+		filtered = filtered || !o.Status.Contains(resp.StatusCode)
 
 		if filtered {
 			discardAll(r.Body)

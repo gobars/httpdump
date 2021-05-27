@@ -40,6 +40,10 @@ func (ck *ConnectionKey) Src() string { return ck.src.String() }
 // Dst return the dst ip and port
 func (ck *ConnectionKey) Dst() string { return ck.dst.String() }
 
+type Sender interface {
+	Send(msg string, countDiscards bool)
+}
+
 type HandlerBase struct {
 	key    Key
 	buffer *bytes.Buffer
@@ -149,7 +153,7 @@ func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime ti
 func (h *HandlerBase) processResponse(r Rsp, uuid []byte, o *Option, endTime time.Time) {
 	defer discardAll(r.GetBody())
 
-	if filtered := !IntSet(o.Status).Contains(r.GetStatusCode()); filtered {
+	if filtered := !o.Status.Contains(r.GetStatusCode()); filtered {
 		return
 	}
 
@@ -164,7 +168,7 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 		seq, uuid, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
 
 	o := h.option
-	if ss.AnyOf(o.Level, LevelL0, LevelUrl) {
+	if ss.AnyOf(o.Level, LevelL1, LevelUrl) {
 		h.writeLine(r.GetMethod(), r.GetHost()+r.GetPath())
 		return
 	}
@@ -211,7 +215,7 @@ func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, uuid []byte, seq i
 		seq, uuid, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano)))
 
 	h.writeLine(r.GetStatusLine())
-	if o.Level == LevelL0 {
+	if o.Level == LevelL1 {
 		return
 	}
 

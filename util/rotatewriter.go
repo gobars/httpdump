@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"context"
@@ -12,18 +12,19 @@ import (
 	"time"
 )
 
-// Printer output parsed http messages
-type Printer struct {
-	queue     chan string
-	writer    io.Writer
-	discarded uint32
+// RotateWriter output parsed http messages
+type RotateWriter struct {
+	queue          chan string
+	writer         io.Writer
+	discarded      uint32
+	allowDiscarded bool
 
 	wg             sync.WaitGroup
 	closer         func()
 	delayDiscarded *DelayChan
 }
 
-func newPrinter(ctx context.Context, outputPath string, outChanSize uint) *Printer {
+func NewRotateWriter(ctx context.Context, outputPath string, outChanSize uint, allowDiscarded bool) *RotateWriter {
 	s := strings.ReplaceAll(outputPath, ":append", "")
 	appendMode := s != outputPath
 	maxSize := uint64(0)
@@ -33,11 +34,20 @@ func newPrinter(ctx context.Context, outputPath string, outChanSize uint) *Print
 	}
 
 	w, closer := createWriter(s, maxSize, appendMode)
-	p := &Printer{queue: make(chan string, outChanSize), writer: w, closer: closer}
-	p.delayDiscarded = NewDelayChan(ctx, func(v interface{}) {
-		p.Send(fmt.Sprintf("\n discarded: %d\n", v.(uint32)), false)
-	}, 10*time.Second)
-	p.start(ctx)
+	p := &RotateWriter{
+		queue:          make(chan string, outChanSize),
+		writer:         w,
+		closer:         closer,
+		allowDiscarded: allowDiscarded,
+	}
+
+	if allowDiscarded {
+		p.delayDiscarded = NewDelayChan(ctx, func(v interface{}) {
+			p.Send(fmt.Sprintf("\n discarded: %d\n", v.(uint32)), false)
+		}, 10*time.Second)
+	}
+	p.wg.Add(1)
+	go p.printBackground(ctx)
 	return p
 }
 
@@ -50,11 +60,15 @@ func createWriter(outputPath string, maxSize uint64, append bool) (io.Writer, fu
 	return bw, func() { _ = bw.Close() }
 }
 
-func (p *Printer) Send(msg string, countDiscards bool) {
-	defer func() {
-		recover()
-	}()
+func (p *RotateWriter) Send(msg string, countDiscards bool) {
 	if msg == "" {
+		return
+	}
+
+	defer func() { recover() }() // avoid write to closed p.queue
+
+	if !p.allowDiscarded {
+		p.queue <- msg
 		return
 	}
 
@@ -62,18 +76,12 @@ func (p *Printer) Send(msg string, countDiscards bool) {
 	case p.queue <- msg:
 	default:
 		if countDiscards {
-			discarded := atomic.AddUint32(&p.discarded, 1)
-			p.delayDiscarded.Put(discarded)
+			p.delayDiscarded.Put(atomic.AddUint32(&p.discarded, 1))
 		}
 	}
 }
 
-func (p *Printer) start(ctx context.Context) {
-	p.wg.Add(1)
-	go p.printBackground(ctx)
-}
-
-func (p *Printer) printBackground(ctx context.Context) {
+func (p *RotateWriter) printBackground(ctx context.Context) {
 	defer p.wg.Done()
 	defer p.closer()
 	ticker := time.NewTicker(1 * time.Second)
@@ -97,8 +105,12 @@ func (p *Printer) printBackground(ctx context.Context) {
 	}
 }
 
-func (p *Printer) finish() {
-	p.queue <- fmt.Sprintf("\n#%d discarded", atomic.LoadUint32(&p.discarded))
+func (p *RotateWriter) Wait() {
+	if p.allowDiscarded {
+		if val := atomic.LoadUint32(&p.discarded); val > 0 {
+			p.queue <- fmt.Sprintf("\n#%d discarded", val)
+		}
+	}
 	close(p.queue)
 	p.wg.Wait()
 }

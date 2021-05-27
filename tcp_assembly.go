@@ -31,10 +31,13 @@ type TCPAssembler struct {
 	processResp bool
 }
 
-func newTCPAssembler(handler ConnectionHandler, processResp bool) *TCPAssembler {
+func newTCPAssembler(handler ConnectionHandler, chanSize uint, filterIP string, filterPort uint16, processResp bool) *TCPAssembler {
 	return &TCPAssembler{
 		connections: map[string]*TCPConnection{},
 		handler:     handler,
+		chanSize:    chanSize,
+		filterIP:    filterIP,
+		filterPort:  filterPort,
 		processResp: processResp,
 	}
 }
