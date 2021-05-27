@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/bingoohuang/httpdump/httpport"
@@ -24,34 +23,15 @@ import (
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
-type Key interface {
-	Src() string
-	Dst() string
-}
-
-// ConnectionKey contains src and dst endpoint identify a connection
-type ConnectionKey struct {
-	src, dst Endpoint
-}
-
-func (ck *ConnectionKey) reverse() ConnectionKey { return ConnectionKey{ck.dst, ck.src} }
-
-// Src return the src ip and port
-func (ck *ConnectionKey) Src() string { return ck.src.String() }
-
-// Dst return the dst ip and port
-func (ck *ConnectionKey) Dst() string { return ck.dst.String() }
-
-// HTTPConnectionHandler impl ConnectionHandler
-type HTTPConnectionHandler struct {
+// ConnectionHandlerPair impl ConnectionHandler
+type ConnectionHandlerPair struct {
 	option *Option
 	sender Sender
-
-	wg sync.WaitGroup
+	wg     sync.WaitGroup
 }
 
-func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
-	handler := &HttpTrafficHandler{
+func (h *ConnectionHandlerPair) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
+	handler := &HttpTrafficHandlerPair{
 		startTime: c.lastTimestamp,
 		HandlerBase: HandlerBase{
 			key:    &ConnectionKey{src: src, dst: dst},
@@ -64,27 +44,18 @@ func (h *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnect
 	go handler.handle(&h.wg, c)
 }
 
-func (h *HTTPConnectionHandler) finish() { h.wg.Wait() }
+func (h *ConnectionHandlerPair) finish() { h.wg.Wait() }
 
-type HandlerBase struct {
-	key    Key
-	buffer *bytes.Buffer
-	option *Option
-	sender Sender
-}
-
-// HttpTrafficHandler parse a http connection traffic and send to printer
-type HttpTrafficHandler struct {
+// HttpTrafficHandlerPair parse a http connection traffic and send to printer
+type HttpTrafficHandlerPair struct {
 	startTime time.Time
 	endTime   time.Time
 
 	HandlerBase
 }
 
-var reqCounter = Counter{}
-
 // read http request/response stream, and do output
-func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
+func (h *HttpTrafficHandlerPair) handle(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
 	defer c.requestStream.Close()
 	defer c.responseStream.Close()
@@ -134,7 +105,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			if filtered {
 				discardAll(r.Body)
 			} else {
-				h.printRequest(r, c.requestStream.LastUUID, seqFn())
+				h.printRequest(r, c.requestStream.GetLastUUID(), seqFn())
 				h.writeLine("")
 				h.sender.Send(h.buffer.String(), true)
 			}
@@ -147,11 +118,11 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 			discardAll(r.Body)
 			discardAll(resp.Body)
 		} else {
-			h.printRequest(r, c.requestStream.LastUUID, seqFn())
+			h.printRequest(r, c.requestStream.GetLastUUID(), seqFn())
 			h.writeLine("")
 			h.endTime = c.lastTimestamp
 
-			h.printResponse(resp, c.responseStream.LastUUID, seqFn())
+			h.printResponse(resp, c.responseStream.GetLastUUID(), seqFn())
 			h.sender.Send(h.buffer.String(), true)
 		}
 
@@ -183,7 +154,7 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 				if filtered {
 					discardAll(resp.Body)
 				} else {
-					h.printResponse(resp, c.responseStream.LastUUID, seqFn())
+					h.printResponse(resp, c.responseStream.GetLastUUID(), seqFn())
 					h.sender.Send(h.buffer.String(), true)
 				}
 			} else if resp.StatusCode == 417 {
@@ -195,37 +166,12 @@ func (h *HttpTrafficHandler) handle(wg *sync.WaitGroup, c *TCPConnection) {
 	h.sender.Send(h.buffer.String(), true)
 }
 
-func (h *HttpTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
+func (h *HttpTrafficHandlerPair) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
 	//TODO: websocket
-
-}
-
-func (h *HandlerBase) writeLineFormat(format string, a ...interface{}) {
-	fmt.Fprintf(h.buffer, format, a...)
-}
-
-func (h *HandlerBase) write(a ...interface{}) {
-	fmt.Fprint(h.buffer, a...)
-}
-
-func (h *HandlerBase) writeLine(a ...interface{}) {
-	fmt.Fprintln(h.buffer, a...)
-}
-
-func (h *HandlerBase) printRequestMark() {
-	h.writeLine()
-}
-
-func (h *HandlerBase) printHeader(header map[string][]string) {
-	for name, values := range header {
-		for _, value := range values {
-			h.writeLine(name+":", value)
-		}
-	}
 }
 
 // print http request
-func (h *HttpTrafficHandler) printRequest(req *httpport.Request, uuid []byte, seq int32) {
+func (h *HttpTrafficHandlerPair) printRequest(req *httpport.Request, uuid []byte, seq int32) {
 	defer discardAll(req.Body)
 
 	if h.option.Curl {
@@ -243,7 +189,7 @@ var blockHeaders = map[string]bool{
 }
 
 // print http request curl command
-func (h *HttpTrafficHandler) printCurlRequest(req Req, uuid []byte, seq int32) {
+func (h *HttpTrafficHandlerPair) printCurlRequest(req Req, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 
 	h.writeLine("\n### REQUEST ", h.key.Src(), "->", h.key.Dst(), h.startTime.Format(time.RFC3339Nano))
@@ -320,31 +266,8 @@ func (h *HttpTrafficHandler) printCurlRequest(req Req, uuid []byte, seq int32) {
 	h.writeLine()
 }
 
-// DumpBody write all data from a reader, to a file.
-func DumpBody(r io.Reader, path string, u *uint32) (int64, error) {
-	f, err := os.Create(path)
-	if err != nil {
-		return 0, err
-	}
-
-	n, err := io.Copy(f, r)
-	if n <= 0 { // nothing to write, remove file
-		os.Remove(path)
-	} else {
-		atomic.AddUint32(u, 1)
-	}
-	f.Close()
-	return n, err
-}
-
-type Counter struct {
-	counter int32
-}
-
-func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }
-
 // printNormalRequest prints http request.
-func (h *HttpTrafficHandler) printNormalRequest(r Req, uuid []byte, seq int32) {
+func (h *HttpTrafficHandlerPair) printNormalRequest(r Req, uuid []byte, seq int32) {
 	//TODO: expect-100 continue handle
 	o := h.option
 	if o.Level == LevelUrl {
@@ -384,17 +307,8 @@ func (h *HttpTrafficHandler) printNormalRequest(r Req, uuid []byte, seq int32) {
 	}
 }
 
-type Rsp interface {
-	GetBody() io.ReadCloser
-	GetStatusLine() string
-	GetRawHeaders() []string
-	GetContentLength() int64
-	GetHeader() http.Header
-	GetStatusCode() int
-}
-
 // print http response
-func (h *HttpTrafficHandler) printResponse(r Rsp, uuid []byte, seq int32) {
+func (h *HttpTrafficHandlerPair) printResponse(r Rsp, uuid []byte, seq int32) {
 	defer discardAll(r.GetBody())
 
 	o := h.option

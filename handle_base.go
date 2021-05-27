@@ -12,26 +12,76 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// FastConnectionHandler impl ConnectionHandler
-type FastConnectionHandler struct {
+// ConnectionHandler is interface for handle tcp connection
+type ConnectionHandler interface {
+	handle(src, dst Endpoint, connection *TCPConnection)
+	finish()
+}
+
+type Key interface {
+	Src() string
+	Dst() string
+}
+
+// ConnectionKey contains src and dst endpoint identify a connection
+type ConnectionKey struct {
+	src, dst Endpoint
+}
+
+func (ck *ConnectionKey) reverse() ConnectionKey { return ConnectionKey{ck.dst, ck.src} }
+
+// Src return the src ip and port
+func (ck *ConnectionKey) Src() string { return ck.src.String() }
+
+// Dst return the dst ip and port
+func (ck *ConnectionKey) Dst() string { return ck.dst.String() }
+
+type HandlerBase struct {
+	key    Key
+	buffer *bytes.Buffer
 	option *Option
 	sender Sender
-	wg     sync.WaitGroup
 }
 
-func (h *FastConnectionHandler) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
-	key := &ConnectionKey{src: src, dst: dst}
-	reqHandler := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, sender: h.sender}
-	rspHandler := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.option, sender: h.sender}
-	h.wg.Add(2)
-	go reqHandler.handleRequest(&h.wg, c)
-	go rspHandler.handleResponse(&h.wg, c)
+func (h *HandlerBase) writeLineFormat(f string, a ...interface{}) { fmt.Fprintf(h.buffer, f, a...) }
+func (h *HandlerBase) write(a ...interface{})                     { fmt.Fprint(h.buffer, a...) }
+func (h *HandlerBase) writeLine(a ...interface{})                 { fmt.Fprintln(h.buffer, a...) }
+func (h *HandlerBase) printRequestMark()                          { h.writeLine() }
+
+func (h *HandlerBase) printHeader(header map[string][]string) {
+	for name, values := range header {
+		for _, value := range values {
+			h.writeLine(name+":", value)
+		}
+	}
 }
 
-func (h *FastConnectionHandler) finish() { h.wg.Wait() }
+type Req interface {
+	GetBody() io.ReadCloser
+	GetHost() string
+	GetRequestURI() string
+	GetPath() string
+	GetMethod() string
+	GetProto() string
+	GetHeader() map[string][]string
+	GetContentLength() int64
+}
+
+type Rsp interface {
+	GetBody() io.ReadCloser
+	GetStatusLine() string
+	GetRawHeaders() []string
+	GetContentLength() int64
+	GetHeader() http.Header
+	GetStatusCode() int
+}
+
+var reqCounter = Counter{}
+var rspCounter = Counter{}
 
 // read http request/response stream, and do output
 func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
@@ -51,49 +101,9 @@ func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 			break
 		}
 
-		h.processRequest(r, c.requestStream.LastUUID, o, startTime)
+		h.processRequest(r, c.requestStream.GetLastUUID(), o, startTime)
 	}
 }
-
-func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse string) {
-	k := h.key
-	tim := t.Format(time.RFC3339Nano)
-	if IsEOF(err) {
-		msg := fmt.Sprintf("\n### EOF %s %s->%s %s", requestOrResponse, k.Src(), k.Dst(), tim)
-		h.sender.Send(msg, false)
-	} else {
-		msg := fmt.Sprintf("\n### ERR %s %s->%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err)
-		h.sender.Send(msg, false)
-		fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
-	}
-}
-
-type Req interface {
-	GetBody() io.ReadCloser
-	GetHost() string
-	GetRequestURI() string
-	GetPath() string
-	GetMethod() string
-	GetProto() string
-	GetHeader() map[string][]string
-	GetContentLength() int64
-}
-
-func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime time.Time) {
-	defer discardAll(r.GetBody())
-
-	if filtered := o.Host != "" && !wildcardMatch(r.GetHost(), o.Host) ||
-		o.Uri != "" && !wildcardMatch(r.GetRequestURI(), o.Uri) ||
-		o.Method != "" && !strings.Contains(o.Method, r.GetMethod()); filtered {
-		return
-	}
-
-	seq := reqCounter.Incr()
-	h.printRequest(r, startTime, uuid, seq)
-	h.sender.Send(h.buffer.String(), true)
-}
-
-var rspCounter = Counter{}
 
 // read http request/response stream, and do output
 func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
@@ -118,8 +128,22 @@ func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 			break
 		}
 
-		h.processResponse(r, c.responseStream.LastUUID, o, endTime)
+		h.processResponse(r, c.responseStream.GetLastUUID(), o, endTime)
 	}
+}
+
+func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime time.Time) {
+	defer discardAll(r.GetBody())
+
+	if filtered := o.Host != "" && !wildcardMatch(r.GetHost(), o.Host) ||
+		o.Uri != "" && !wildcardMatch(r.GetRequestURI(), o.Uri) ||
+		o.Method != "" && !strings.Contains(o.Method, r.GetMethod()); filtered {
+		return
+	}
+
+	seq := reqCounter.Incr()
+	h.printRequest(r, startTime, uuid, seq)
+	h.sender.Send(h.buffer.String(), true)
 }
 
 func (h *HandlerBase) processResponse(r Rsp, uuid []byte, o *Option, endTime time.Time) {
@@ -233,3 +257,39 @@ func parseContentLength(cl int64, header http.Header) int64 {
 
 	return contentLength
 }
+
+func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse string) {
+	k := h.key
+	tim := t.Format(time.RFC3339Nano)
+	if IsEOF(err) {
+		msg := fmt.Sprintf("\n### EOF %s %s->%s %s", requestOrResponse, k.Src(), k.Dst(), tim)
+		h.sender.Send(msg, false)
+	} else {
+		msg := fmt.Sprintf("\n### ERR %s %s->%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err)
+		h.sender.Send(msg, false)
+		fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
+	}
+}
+
+// DumpBody write all data from a reader, to a file.
+func DumpBody(r io.Reader, path string, u *uint32) (int64, error) {
+	f, err := os.Create(path)
+	if err != nil {
+		return 0, err
+	}
+
+	n, err := io.Copy(f, r)
+	if n <= 0 { // nothing to write, remove file
+		os.Remove(path)
+	} else {
+		atomic.AddUint32(u, 1)
+	}
+	f.Close()
+	return n, err
+}
+
+type Counter struct {
+	counter int32
+}
+
+func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }

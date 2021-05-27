@@ -28,30 +28,26 @@ type TCPAssembler struct {
 	filterIP    string
 	filterPort  uint16
 	chanSize    uint
+	processResp bool
 }
 
-func newTCPAssembler(handler ConnectionHandler) *TCPAssembler {
-	return &TCPAssembler{connections: map[string]*TCPConnection{}, handler: handler}
+func newTCPAssembler(handler ConnectionHandler, processResp bool) *TCPAssembler {
+	return &TCPAssembler{
+		connections: map[string]*TCPConnection{},
+		handler:     handler,
+		processResp: processResp,
+	}
 }
 
 func (r *TCPAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
 	src := Endpoint{ip: flow.Src().String(), port: uint16(tcp.SrcPort)}
 	dst := Endpoint{ip: flow.Dst().String(), port: uint16(tcp.DstPort)}
-	if r.filterIP != "" && src.ip != r.filterIP && dst.ip != r.filterIP {
-		return // dropped
-	}
-	if r.filterPort != 0 && src.port != r.filterPort && dst.port != r.filterPort {
-		return // dropped
+
+	if r.shouldDrop(src, dst) {
+		return
 	}
 
-	srcString, dstString := src.String(), dst.String()
-	var key string
-	if srcString < dstString {
-		key = srcString + "-" + dstString
-	} else {
-		key = dstString + "-" + srcString
-	}
-
+	key := r.createConnectionKey(src, dst)
 	createNewConn := tcp.SYN && !tcp.ACK || isHTTPRequestData(tcp.Payload)
 	c := r.retrieveConnection(src, dst, key, createNewConn)
 	if c == nil {
@@ -66,13 +62,41 @@ func (r *TCPAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp t
 	}
 }
 
+func (r *TCPAssembler) createConnectionKey(src Endpoint, dst Endpoint) string {
+	srcString, dstString := src.String(), dst.String()
+	if srcString < dstString {
+		return srcString + "-" + dstString
+	} else {
+		return dstString + "-" + srcString
+	}
+}
+
+func (r *TCPAssembler) shouldDrop(src, dst Endpoint) (dropped bool) {
+	if r.filterIP != "" && r.filterPort > 0 {
+		if src.ip == r.filterIP && src.port == r.filterPort ||
+			dst.ip == r.filterIP && dst.port == r.filterPort {
+			return false
+		}
+		return true
+	}
+
+	if r.filterIP != "" && src.ip != r.filterIP && dst.ip != r.filterIP {
+		return true
+	}
+	if r.filterPort > 0 && src.port != r.filterPort && dst.port != r.filterPort {
+		return true
+	}
+
+	return false
+}
+
 // retrieveConnection get connection this packet belong to; create new one if is new connection.
 func (r *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bool) *TCPConnection {
 	defer r.lock.LockDeferUnlock()()
 
 	c := r.connections[key]
 	if c == nil && init {
-		c = newTCPConnection(key, src, dst, r.chanSize)
+		c = newTCPConnection(key, src, dst, r.chanSize, r.processResp)
 		r.connections[key] = c
 		r.handler.handle(src, dst, c)
 	}
@@ -113,22 +137,16 @@ func (r *TCPAssembler) FinishAll() {
 	r.handler.finish()
 }
 
-// ConnectionHandler is interface for handle tcp connection
-type ConnectionHandler interface {
-	handle(src, dst Endpoint, connection *TCPConnection)
-	finish()
-}
-
 // TCPConnection hold info for one tcp connection
 type TCPConnection struct {
-	requestStream    *NetworkStream // stream from client to server
-	responseStream   *NetworkStream // stream from server to client
-	clientID         Endpoint       // the client key(by ip and port)
-	lastTimestamp    time.Time      // timestamp receive last packet
-	lastReqTimestamp time.Time      // timestamp receive last packet
-	lastRspTimestamp time.Time      // timestamp receive last packet
-	isHTTP           bool
 	key              string
+	requestStream    Stream    // stream from client to server
+	responseStream   Stream    // stream from server to client
+	clientID         Endpoint  // the client key(by ip and port)
+	lastTimestamp    time.Time // timestamp receive last packet
+	lastReqTimestamp time.Time // timestamp receive last packet
+	lastRspTimestamp time.Time // timestamp receive last packet
+	isHTTP           bool
 }
 
 // Endpoint is one endpoint of a tcp connection
@@ -141,12 +159,19 @@ func (p Endpoint) equals(v Endpoint) bool { return p.ip == v.ip && p.port == v.p
 func (p Endpoint) String() string         { return p.ip + ":" + strconv.Itoa(int(p.port)) }
 
 // create tcp connection, by the first tcp packet. this packet should from client to server
-func newTCPConnection(key string, src, dst Endpoint, chanSize uint) *TCPConnection {
-	return &TCPConnection{
-		requestStream:  newNetworkStream(src, dst, true, chanSize),
-		responseStream: newNetworkStream(src, dst, false, chanSize),
-		key:            key,
+func newTCPConnection(key string, src, dst Endpoint, chanSize uint, processResp bool) *TCPConnection {
+	t := &TCPConnection{
+		key:           key,
+		requestStream: newNetworkStream(src, dst, true, chanSize),
 	}
+
+	if processResp {
+		t.responseStream = newNetworkStream(src, dst, false, chanSize)
+	} else {
+		t.responseStream = &FakeStream{}
+	}
+
+	return t
 }
 
 // when receive tcp packet
@@ -161,7 +186,7 @@ func (c *TCPConnection) onReceive(src Endpoint, tcp *layers.TCP, timestamp time.
 		c.isHTTP = true
 	}
 
-	var send, confirm *NetworkStream
+	var send, confirm Stream
 	if c.clientID.equals(src) {
 		send = c.requestStream
 		confirm = c.responseStream
@@ -172,18 +197,18 @@ func (c *TCPConnection) onReceive(src Endpoint, tcp *layers.TCP, timestamp time.
 		c.lastRspTimestamp = c.lastTimestamp
 	}
 
-	send.appendPacket(tcp)
+	send.AppendPacket(tcp)
 
 	if tcp.SYN { /* do nothing*/
 	}
 
 	if tcp.ACK { // confirm
-		confirm.confirmPacket(tcp.Ack)
+		confirm.ConfirmPacket(tcp.Ack)
 	}
 
 	// terminate c
 	if tcp.FIN || tcp.RST {
-		send.closed = true
+		send.SetClosed(true)
 	}
 }
 
@@ -193,16 +218,18 @@ func (c *TCPConnection) flushOlderThan() {
 	//c.requestStream.window
 	//c.responseStream.window
 	// remove and close c
-	c.requestStream.closed = true
-	c.responseStream.closed = true
+	c.requestStream.SetClosed(true)
+	c.responseStream.SetClosed(true)
 	c.finish()
 }
 
-func (c *TCPConnection) closed() bool { return c.requestStream.closed && c.responseStream.closed }
+func (c *TCPConnection) closed() bool {
+	return c.requestStream.IsClosed() && c.responseStream.IsClosed()
+}
 
 func (c *TCPConnection) finish() {
-	c.requestStream.finish()
-	c.responseStream.finish()
+	c.requestStream.Finish()
+	c.responseStream.Finish()
 }
 
 // NetworkStream tread one-direction tcp data as stream. impl reader closer
@@ -220,7 +247,35 @@ type NetworkStream struct {
 	lastPacket    *layers.TCP
 }
 
-func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint) *NetworkStream {
+func (s *NetworkStream) GetLastUUID() []byte   { return s.LastUUID }
+func (s *NetworkStream) SetClosed(closed bool) { s.closed = closed }
+func (s *NetworkStream) IsClosed() bool        { return s.closed }
+
+type Stream interface {
+	AppendPacket(tcp *layers.TCP)
+	ConfirmPacket(ack uint32)
+	SetClosed(closed bool)
+	IsClosed() bool
+	Finish()
+	Read(p []byte) (n int, err error)
+	Close() error
+	GetLastUUID() []byte
+}
+
+type FakeStream struct {
+	closed bool
+}
+
+func (*FakeStream) GetLastUUID() []byte            { panic("should not be called") }
+func (*FakeStream) Close() error                   { panic("should not be called") }
+func (*FakeStream) Read([]byte) (n int, err error) { panic("should not be called") }
+func (*FakeStream) AppendPacket(*layers.TCP)       {}
+func (*FakeStream) ConfirmPacket(uint32)           {}
+func (f *FakeStream) SetClosed(closed bool)        { f.closed = closed }
+func (f *FakeStream) IsClosed() bool               { return f.closed }
+func (*FakeStream) Finish()                        {}
+
+func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint) Stream {
 	return &NetworkStream{
 		window:    newReceiveWindow(64),
 		c:         make(chan *layers.TCP, chanSize),
@@ -230,21 +285,21 @@ func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint) *Network
 	}
 }
 
-func (s *NetworkStream) appendPacket(tcp *layers.TCP) {
+func (s *NetworkStream) AppendPacket(tcp *layers.TCP) {
 	if s.ignore {
 		return
 	}
 	s.window.insert(tcp)
 }
 
-func (s *NetworkStream) confirmPacket(ack uint32) {
+func (s *NetworkStream) ConfirmPacket(ack uint32) {
 	if s.ignore {
 		return
 	}
 	s.window.confirm(ack, s.c)
 }
 
-func (s *NetworkStream) finish() { close(s.c) }
+func (s *NetworkStream) Finish() { close(s.c) }
 
 // UUID returns the UUID of a TCP request and its response.
 func (s *NetworkStream) UUID(p *layers.TCP) []byte {

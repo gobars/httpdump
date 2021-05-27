@@ -26,9 +26,9 @@ const (
 type Option struct {
 	Level    string        `val:"header" usage:"Output level, options are: l1(first line) | url(only url) | header(http headers) | all(headers, and textuary http body)"`
 	Input    string        `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
-	Ip       string        `usage:"Filter by ip, if either source or target ip is matched, the packet will be processed"`
-	Bpf      string        `usage:"Customized bpf, if it is set, -ip -port will be suppressed"`
+	Ip       string        `usage:"Filter by ip, if either src or dst ip is matched, the packet will be processed"`
 	Port     uint          `usage:"Filter by port, if either source or target port is matched, the packet will be processed"`
+	Bpf      string        `usage:"Customized bpf, if it is set, -ip -port will be suppressed"`
 	Chan     uint          `val:"10240" usage:"Channel size to buffer tcp packets"`
 	OutChan  uint          `val:"40960" usage:"Output channel size to buffer tcp packets"`
 	Host     string        `usage:"Filter by request host, using wildcard match(*, ?)"`
@@ -48,7 +48,7 @@ type Option struct {
 	dumpNum uint32
 }
 
-func (Option) VersionInfo() string { return "httpdump v1.0.0 2021-05-26 17:15:20" }
+func (Option) VersionInfo() string { return "httpdump v1.1.0 2021-05-27 09:39:10" }
 
 func main() {
 	option := &Option{}
@@ -77,13 +77,13 @@ func (o *Option) run() error {
 
 	switch o.Mode {
 	case "fast", "pair":
-		a := newTCPAssembler(o.createConnectionHandler(printer))
+		a := newTCPAssembler(o.createConnectionHandler(printer), o.Resp)
 		a.chanSize = o.Chan
 		a.filterIP = o.Ip
 		a.filterPort = uint16(o.Port)
 		assembler = a
 	default:
-		assembler = createTcpAssembler(c, o, printer)
+		assembler = createTcpStdAssembler(c, o, printer)
 	}
 
 	loop(c, packets, assembler, o.Idle)
@@ -93,7 +93,7 @@ func (o *Option) run() error {
 	return nil
 }
 
-func createTcpAssembler(c context.Context, o *Option, printer *Printer) *TcpStdAssembler {
+func createTcpStdAssembler(c context.Context, o *Option, printer *Printer) *TcpStdAssembler {
 	assembler := tcpassembly.NewAssembler(tcpassembly.NewStreamPool(NewFactory(c, o, printer)))
 	return &TcpStdAssembler{Assembler: assembler}
 }
@@ -104,10 +104,10 @@ type Sender interface {
 
 func (o *Option) createConnectionHandler(sender Sender) ConnectionHandler {
 	if o.Mode == "fast" {
-		return &FastConnectionHandler{option: o, sender: sender}
+		return &ConnectionHandlerFast{option: o, sender: sender}
 	}
 
-	return &HTTPConnectionHandler{option: o, sender: sender}
+	return &ConnectionHandlerPair{option: o, sender: sender}
 }
 
 func (o *Option) PostProcess() {
