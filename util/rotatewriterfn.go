@@ -45,12 +45,12 @@ func (w *RotateFileWriter) Write(p []byte) (int, error) {
 	newFn := NewFilename(w.FnTemplate)
 
 	for {
-		fn := RotateFilename(newFn, w.rotateFunc())
+		fn, index := RotateFilename(newFn, w.rotateFunc())
 		if fn == w.currentFn {
 			break
 		}
 
-		if ok, err := w.openFile(fn); err != nil {
+		if ok, err := w.openFile(fn, index); err != nil {
 			return 0, err
 		} else if ok {
 			break
@@ -62,8 +62,11 @@ func (w *RotateFileWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func (w *RotateFileWriter) openFile(fn string) (ok bool, err error) {
+func (w *RotateFileWriter) openFile(fn string, index int) (ok bool, err error) {
 	_ = w.Close()
+	if index == 2 { // rename bbb-2021-05-27-18-26.http to bbb-2021-05-27-18-26_00001.http
+		_ = os.Rename(w.currentFn, SetFileIndex(w.currentFn, 1))
+	}
 
 	w.file, err = os.OpenFile(fn, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0660)
 	if err != nil {
@@ -130,17 +133,18 @@ func NewFilename(template string) string {
 	return fn
 }
 
-func RotateFilename(fn string, rotate bool) string {
+func RotateFilename(fn string, rotate bool) (string, int) {
 	if !rotate {
-		return fn
+		return fn, 0
 	}
 
 	max, _ := FindMaxFileIndex(fn)
-	if max < 0 {
-		return fn
+	if max <= 0 {
+		return fn, 0
 	}
 
-	return SetFileIndex(fn, max+1)
+	n := max + 1
+	return SetFileIndex(fn, n), n
 }
 
 func GetFileIndex(path string) int {
@@ -159,16 +163,16 @@ func SetFileIndex(path string, index int) string {
 }
 
 // FindMaxFileIndex finds the max index of a file like log-2021-05-27_00001.log.
-// return maxIndex = -1 there is no file matches log-2021-05-27*.log.
-// return maxIndex >= 0 tell the max index in matches.
+// return maxIndex = 0 there is no file matches log-2021-05-27*.log.
+// return maxIndex >= 1 tell the max index in matches.
 func FindMaxFileIndex(path string) (int, string) {
 	base, _, ext := SplitBaseIndexExt(path)
 	matches, _ := filepath.Glob(base + "*" + ext)
 	if len(matches) == 0 {
-		return -1, path
+		return 0, path
 	}
 
-	maxIndex := 0
+	maxIndex := 1
 	maxFn := path
 	for _, fn := range matches {
 		if index := GetFileIndex(fn); index > maxIndex {
