@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bingoohuang/gg/pkg/man"
 	"io"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -65,7 +66,11 @@ func (p *RotateWriter) Send(msg string, countDiscards bool) {
 		return
 	}
 
-	defer func() { recover() }() // avoid write to closed p.queue
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("W! Recovered %v", err)
+		}
+	}() // avoid write to closed p.queue
 
 	if !p.allowDiscarded {
 		p.queue <- msg
@@ -94,7 +99,6 @@ func (p *RotateWriter) printBackground(ctx context.Context) {
 				return
 			}
 			_, _ = p.writer.Write([]byte(msg))
-			ticker.Reset(1 * time.Second)
 		case <-ticker.C:
 			if f, ok := p.writer.(Flusher); ok {
 				_ = f.Flush()
@@ -103,6 +107,7 @@ func (p *RotateWriter) printBackground(ctx context.Context) {
 			return
 		}
 	}
+
 }
 
 func (p *RotateWriter) Close() error {

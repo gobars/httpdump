@@ -127,7 +127,7 @@ func (c *Config) createParseOptions() *Options {
 const layout = `2006-01-02 15:04:05.000000`
 
 func replay(client *HTTPClient, payload Msg) error {
-	logTitle(payload.Title, "", "")
+	//logTitle(payload.Title, "", "")
 	if r, err := client.Send(payload.Data); err != nil {
 		log.Printf("E! failed to replay, error %v", err)
 	} else if r != nil {
@@ -176,7 +176,6 @@ func (c *Config) CreateHTTPClientConfig() *HTTPClientConfig {
 
 	return &HTTPClientConfig{
 		Timeout:        c.Timeout,
-		RedirectLimit:  c.RedirectLimit,
 		InsecureVerify: c.InsecureVerify,
 		BaseURL:        u,
 		Methods:        c.Method,

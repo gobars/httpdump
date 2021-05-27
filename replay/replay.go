@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,7 +18,6 @@ type HTTPClient struct {
 
 type HTTPClientConfig struct {
 	Timeout        time.Duration
-	RedirectLimit  int
 	InsecureVerify bool
 	BaseURL        *url.URL
 	Methods        string
@@ -27,21 +25,13 @@ type HTTPClientConfig struct {
 
 // NewHTTPClient returns new http client with check redirects policy
 func NewHTTPClient(c *HTTPClientConfig) *HTTPClient {
-	checkRedirect := func(req *http.Request, via []*http.Request) error {
-		if len(via) >= c.RedirectLimit {
-			log.Printf("W! [HTTPCLIENT] max redirects[%d] reached!", c.RedirectLimit)
-			return http.ErrUseLastResponse
-		}
-		lastReq := via[len(via)-1]
-		resp := req.Response
-		log.Printf("W! [HTTPCLIENT] redirects from %q to %q with %q", lastReq.Host, req.Host, resp.Status)
-		return nil
+	if c.Timeout == 0 {
+		c.Timeout = 15 * time.Second
 	}
 	client := &HTTPClient{
 		HTTPClientConfig: c,
 		Client: &http.Client{
-			Timeout:       c.Timeout,
-			CheckRedirect: checkRedirect,
+			Timeout: c.Timeout,
 		},
 	}
 	if !c.InsecureVerify {
