@@ -42,13 +42,9 @@ func NewRotateFileWriter(filenameTemplate string, maxSize uint64, append bool) *
 }
 
 func (w *RotateFileWriter) Write(p []byte) (int, error) {
-	if w.file == nil {
-		fn := FirstFilename(w.FnTemplate)
-		w.currentFn = fn
-		w.currentSize = FileSize(fn)
-	}
+	newFn := NewFilename(w.FnTemplate)
 
-	if fn := RotateFilename(w.currentFn, w.rotateFunc()); fn != w.currentFn || w.file == nil {
+	if fn := RotateFilename(newFn, w.rotateFunc()); fn != w.currentFn {
 		if err := w.openFile(fn); err != nil {
 			return 0, err
 		}
@@ -69,6 +65,11 @@ func (w *RotateFileWriter) openFile(fn string) (err error) {
 
 	w.currentFn = fn
 	w.writer = bufio.NewWriter(w.file)
+
+	if stat, _ := w.file.Stat(); stat != nil {
+		w.currentSize = uint64(stat.Size())
+	}
+
 	return nil
 }
 
@@ -87,7 +88,6 @@ func (w *RotateFileWriter) Close() error {
 	if w.writer != nil && w.file != nil {
 		_ = w.writer.Flush()
 		_ = w.file.Close()
-		w.currentSize = 0
 		w.writer = nil
 		w.file = nil
 
@@ -121,16 +121,12 @@ func ParseFileNameTemplate(s string) string {
 	return s
 }
 
-func FirstFilename(template string) string {
+func NewFilename(template string) string {
 	fn := ParseFileNameTemplate(template)
 	fn = filepath.Clean(fn)
 
-	max := FindMaxFileIndex(fn)
-	if max < 0 {
-		return fn
-	}
-
-	return SetFileIndex(fn, max+1)
+	_, fn = FindMaxFileIndex(fn)
+	return fn
 }
 
 func RotateFilename(fn string, rotate bool) string {
@@ -138,7 +134,7 @@ func RotateFilename(fn string, rotate bool) string {
 		return fn
 	}
 
-	max := FindMaxFileIndex(fn)
+	max, _ := FindMaxFileIndex(fn)
 	if max < 0 {
 		return fn
 	}
@@ -146,54 +142,51 @@ func RotateFilename(fn string, rotate bool) string {
 	return SetFileIndex(fn, max+1)
 }
 
-var idx = regexp.MustCompile(`_\d+$`)
-
 func GetFileIndex(path string) int {
-	ext := filepath.Ext(path)
-	base := strings.TrimSuffix(path, ext)
-
-	subs := idx.FindStringSubmatch(base)
-	if len(subs) == 0 {
+	_, index, _ := SplitBaseIndexExt(path)
+	if index == "" {
 		return -1
 	}
 
-	index, _ := strconv.Atoi(subs[len(subs)-1][1:])
-	return index
+	value, _ := strconv.Atoi(index)
+	return value
 }
 
 func SetFileIndex(path string, index int) string {
-	ext := filepath.Ext(path)
-	base := strings.TrimSuffix(path, ext)
-
-	loc := idx.FindStringSubmatchIndex(base)
-	if len(loc) == 0 {
-		return fmt.Sprintf("%s_%05d%s", base, index, ext)
-	}
-
-	return fmt.Sprintf("%s_%05d%s", base[:loc[0]], index, ext)
-
+	base, _, ext := SplitBaseIndexExt(path)
+	return fmt.Sprintf("%s_%05d%s", base, index, ext)
 }
 
-func FindMaxFileIndex(path string) int {
-	ext := filepath.Ext(path)
-	base := strings.TrimSuffix(path, ext)
-
-	loc := idx.FindStringSubmatchIndex(base)
-	if len(loc) > 0 {
-		base = base[:loc[0]]
-	}
-
+// FindMaxFileIndex finds the max index of a file like log-2021-05-27_00001.log.
+// return maxIndex = -1 there is no file matches log-2021-05-27*.log.
+// return maxIndex >= 0 tell the max index in matches.
+func FindMaxFileIndex(path string) (int, string) {
+	base, _, ext := SplitBaseIndexExt(path)
 	matches, _ := filepath.Glob(base + "*" + ext)
 	if len(matches) == 0 {
-		return -1
+		return -1, path
 	}
 
 	maxIndex := 0
-	for _, match := range matches {
-		if index := GetFileIndex(match); index > maxIndex {
+	maxFn := path
+	for _, fn := range matches {
+		if index := GetFileIndex(fn); index > maxIndex {
 			maxIndex = index
+			maxFn = fn
 		}
 	}
 
-	return maxIndex
+	return maxIndex, maxFn
+}
+
+var idx = regexp.MustCompile(`_\d{5,}`)
+
+func SplitBaseIndexExt(path string) (base, index, ext string) {
+	if subs := idx.FindAllStringSubmatchIndex(path, -1); len(subs) > 0 {
+		sub := subs[len(subs)-1]
+		return path[:sub[0]], path[sub[0]+1 : sub[1]], path[sub[1]:]
+	}
+
+	ext = filepath.Ext(path)
+	return strings.TrimSuffix(path, ext), "", ext
 }

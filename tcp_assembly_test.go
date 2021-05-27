@@ -10,7 +10,7 @@ func TestReceiveWindow(t *testing.T) {
 
 	window := newReceiveWindow(4)
 
-	// init insert
+	// started insert
 	window.insert(&layers.TCP{Seq: 10005, BaseLayer: layers.BaseLayer{Payload: []byte{1, 2}}})
 	window.insert(&layers.TCP{Seq: 10000, BaseLayer: layers.BaseLayer{Payload: []byte{7, 8, 9, 0}}})
 	window.insert(&layers.TCP{Seq: 10010, BaseLayer: layers.BaseLayer{Payload: []byte{2, 3, 4, 5}}})
