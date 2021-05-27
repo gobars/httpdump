@@ -1637,7 +1637,7 @@ func NotFound(w ResponseWriter, r *Request) { Error(w, "404 page not found", Sta
 func NotFoundHandler() Handler { return HandlerFunc(NotFound) }
 
 // StripPrefix returns a handler that serves HTTP requests
-// by removing the given prefix from the request URL's Path
+// by removing the given prefix from the request BaseURL's Path
 // and invoking the handler h. StripPrefix handles a
 // request for a path that doesn't begin with prefix by
 // replying with an HTTP 404 not found error.
@@ -1732,7 +1732,7 @@ func htmlEscape(s string) string {
 	return htmlReplacer.Replace(s)
 }
 
-// Redirect to a fixed URL
+// Redirect to a fixed BaseURL
 type redirectHandler struct {
 	url  string
 	code int
@@ -1753,9 +1753,9 @@ func RedirectHandler(url string, code int) Handler {
 }
 
 // ServeMux is an HTTP request multiplexer.
-// It matches the URL of each incoming request against a list of registered
+// It matches the BaseURL of each incoming request against a list of registered
 // patterns and calls the handler for the pattern that
-// most closely matches the URL.
+// most closely matches the BaseURL.
 //
 // Patterns name fixed, rooted paths, like "/favicon.ico",
 // or rooted subtrees, like "/images/" (note the trailing slash).
@@ -1768,7 +1768,7 @@ func RedirectHandler(url string, code int) Handler {
 //
 // Note that since a pattern ending in a slash names a rooted subtree,
 // the pattern "/" matches all paths not matched by other registered
-// patterns, not just the URL with Path == "/".
+// patterns, not just the BaseURL with Path == "/".
 //
 // If a subtree has been registered and a request is received naming the
 // subtree root without its trailing slash, ServeMux redirects that
@@ -1784,9 +1784,9 @@ func RedirectHandler(url string, code int) Handler {
 // "/codesearch" and "codesearch.google.com/" without also taking over
 // requests for "http://www.google.com/".
 //
-// ServeMux also takes care of sanitizing the URL request path,
+// ServeMux also takes care of sanitizing the BaseURL request path,
 // redirecting any request containing . or .. elements or repeated slashes
-// to an equivalent, cleaner URL.
+// to an equivalent, cleaner BaseURL.
 type ServeMux struct {
 	mu    sync.RWMutex
 	m     map[string]muxEntry
@@ -1853,7 +1853,7 @@ func (mux *ServeMux) match(path string) (h Handler, pattern string) {
 }
 
 // Handler returns the handler to use for the given request,
-// consulting r.Method, r.Host, and r.URL.Path. It always returns
+// consulting r.Method, r.Host, and r.BaseURL.Path. It always returns
 // a non-nil handler. If the path is not in its canonical form, the
 // handler will be an internally-generated handler that redirects
 // to the canonical path.
@@ -1897,7 +1897,7 @@ func (mux *ServeMux) handler(host, path string) (h Handler, pattern string) {
 }
 
 // ServeHTTP dispatches the request to the handler whose
-// pattern most closely matches the request URL.
+// pattern most closely matches the request BaseURL.
 func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
 	if r.RequestURI == "*" {
 		if r.ProtoAtLeast(1, 1) {

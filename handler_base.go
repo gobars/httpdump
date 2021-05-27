@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/httpdump/httpport"
+	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
@@ -42,6 +44,7 @@ func (ck *ConnectionKey) Dst() string { return ck.dst.String() }
 
 type Sender interface {
 	Send(msg string, countDiscards bool)
+	Close() error
 }
 
 type HandlerBase struct {
@@ -51,15 +54,17 @@ type HandlerBase struct {
 	sender Sender
 }
 
-func (h *HandlerBase) writeLineFormat(f string, a ...interface{}) { fmt.Fprintf(h.buffer, f, a...) }
-func (h *HandlerBase) write(a ...interface{})                     { fmt.Fprint(h.buffer, a...) }
-func (h *HandlerBase) writeLine(a ...interface{})                 { fmt.Fprintln(h.buffer, a...) }
-func (h *HandlerBase) printRequestMark()                          { h.writeLine() }
+func (h *HandlerBase) writeFormat(f string, a ...interface{}) { fmt.Fprintf(h.buffer, f, a...) }
+func (h *HandlerBase) write(a ...interface{})                 { fmt.Fprint(h.buffer, a...) }
+func (h *HandlerBase) writeLine(a ...interface{}) {
+	fmt.Fprint(h.buffer, a...)
+	fmt.Fprintf(h.buffer, "\r\n")
+}
 
 func (h *HandlerBase) printHeader(header map[string][]string) {
 	for name, values := range header {
 		for _, value := range values {
-			h.writeLine(name+":", value)
+			h.writeFormat("%s: %s\r\n", name, value)
 		}
 	}
 }
@@ -169,11 +174,11 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 
 	o := h.option
 	if ss.AnyOf(o.Level, LevelL1, LevelUrl) {
-		h.writeLine(r.GetMethod(), r.GetHost()+r.GetPath())
+		h.writeFormat("%s %s\r\n", r.GetMethod(), r.GetHost()+r.GetPath())
 		return
 	}
 
-	h.writeLine(r.GetMethod(), r.GetRequestURI(), r.GetProto())
+	h.writeFormat("%s %s %s\r\n", r.GetMethod(), r.GetRequestURI(), r.GetProto())
 	h.printHeader(r.GetHeader())
 
 	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
@@ -197,7 +202,7 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 	}
 
 	if hasBody {
-		h.writeLine()
+		h.writeFormat("\r\n")
 		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
@@ -260,6 +265,80 @@ func parseContentLength(cl int64, header http.Header) int64 {
 	}
 
 	return contentLength
+}
+
+// print http request/response body
+func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
+	// deal with content encoding such as gzip, deflate
+	nr, decompressed := tryDecompress(header, reader)
+	if decompressed {
+		defer nr.Close()
+	}
+
+	// check mime type and charset
+	contentType := header.Get("Content-Type")
+	if contentType == "" {
+		// TODO: detect content type using httpport.DetectContentType()
+	}
+	mimeTypeStr, charset := parseContentType(contentType)
+	mt := parseMimeType(mimeTypeStr)
+	isText := mt.isTextContent()
+	isBinary := mt.isBinaryContent()
+
+	if !isText {
+		if err := h.printNonTextTypeBody(nr, contentType, isBinary); err != nil {
+			h.writeLine("{Read content error", err, "}")
+		}
+		return
+	}
+
+	var body string
+	var err error
+	if charset == "" {
+		// response do not set charset, try to detect
+		if data, err := io.ReadAll(nr); err == nil {
+			// TODO: try to detect charset
+			body = string(data)
+		}
+	} else {
+		body, err = readToStringWithCharset(nr, charset)
+	}
+	if err != nil {
+		h.writeLine("{Read body failed", err, "}")
+		return
+	}
+
+	h.write(body)
+}
+
+func (h *HandlerBase) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
+	if h.option.Force && !isBinary {
+		data, err := ioutil.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		// TODO: try to detect charset
+		h.writeLine(string(data))
+		h.writeLine()
+	} else {
+		h.writeLine("{Non-text body, content-type:", contentType, ", len:", discardAll(reader), "}")
+	}
+	return nil
+}
+
+func discardAll(r io.Reader) (discarded int) {
+	return tcpreader.DiscardBytesToEOF(r)
+}
+
+func bodyFileName(prefix string, uuid []byte, seq int32, req string, t time.Time) string {
+	timeStr := t.Format("20060102")
+	// parse id from uuid like id:a4af2382c0a6df1c6fb4280a,Seq:1874077706,Ack:2080684195
+	if f := bytes.IndexRune(uuid, ':'); f >= 0 {
+		if c := bytes.IndexRune(uuid[f:], ','); c >= 0 {
+			uuid = uuid[f+1 : f+c]
+		}
+	}
+	return fmt.Sprintf("%s.%s.%d.%s.%s", prefix, timeStr, seq, uuid, req)
 }
 
 func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse string) {

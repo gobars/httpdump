@@ -76,7 +76,7 @@ type Transport struct {
 	// Proxy specifies a function to return a proxy for a given
 	// Request. If the function returns a non-nil error, the
 	// request is aborted with the provided error.
-	// If Proxy is nil or returns a nil *URL, no proxy is used.
+	// If Proxy is nil or returns a nil *BaseURL, no proxy is used.
 	Proxy func(*Request) (*url.URL, error)
 
 	// Dial specifies the dial function for creating unencrypted
@@ -189,22 +189,22 @@ func (t *Transport) onceSetNextProtoDefaults() {
 	//}
 }
 
-// ProxyFromEnvironment returns the URL of the proxy to use for a
+// ProxyFromEnvironment returns the BaseURL of the proxy to use for a
 // given request, as indicated by the environment variables
 // HTTP_PROXY, HTTPS_PROXY and NO_PROXY (or the lowercase versions
 // thereof). HTTPS_PROXY takes precedence over HTTP_PROXY for https
 // requests.
 //
-// The environment values may be either a complete URL or a
+// The environment values may be either a complete BaseURL or a
 // "host[:port]", in which case the "http" scheme is assumed.
 // An error is returned if the value is a different form.
 //
-// A nil URL and nil error are returned if no proxy is defined in the
+// A nil BaseURL and nil error are returned if no proxy is defined in the
 // environment, or a proxy should not be used for the given request,
 // as defined by NO_PROXY.
 //
-// As a special case, if req.URL.Host is "localhost" (with or without
-// a port number), then a nil URL and nil error will be returned.
+// As a special case, if req.BaseURL.Host is "localhost" (with or without
+// a port number), then a nil BaseURL and nil error will be returned.
 func ProxyFromEnvironment(req *Request) (*url.URL, error) {
 	var proxy string
 	if req.URL.Scheme == "https" {
@@ -235,7 +235,7 @@ func ProxyFromEnvironment(req *Request) (*url.URL, error) {
 }
 
 // ProxyURL returns a proxy function (for use in a Transport)
-// that always returns the same URL.
+// that always returns the same BaseURL.
 func ProxyURL(fixedURL *url.URL) func(*Request) (*url.URL, error) {
 	return func(*Request) (*url.URL, error) {
 		return fixedURL, nil
@@ -264,7 +264,7 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 	t.nextProtoOnce.Do(t.onceSetNextProtoDefaults)
 	if req.URL == nil {
 		req.closeBody()
-		return nil, errors.New("http: nil Request.URL")
+		return nil, errors.New("http: nil Request.BaseURL")
 	}
 	if req.Header == nil {
 		req.closeBody()
@@ -288,7 +288,7 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 	}
 	if req.URL.Host == "" {
 		req.closeBody()
-		return nil, errors.New("http: no Host in request URL")
+		return nil, errors.New("http: no Host in request BaseURL")
 	}
 
 	for {
@@ -917,7 +917,7 @@ func useProxy(addr string) bool {
 // Note: no support to https to the proxy yet.
 //
 type connectMethod struct {
-	proxyURL     *url.URL // nil for no proxy, else full proxy URL
+	proxyURL     *url.URL // nil for no proxy, else full proxy BaseURL
 	targetScheme string   // "http" or "https"
 	targetAddr   string   // Not used if proxy + http targetScheme (4th example in table)
 }
@@ -957,8 +957,8 @@ func (cm *connectMethod) tlsHost() string {
 }
 
 // connectMethodKey is the map key version of connectMethod, with a
-// stringified proxy URL (or the empty string) instead of a pointer to
-// a URL.
+// stringified proxy BaseURL (or the empty string) instead of a pointer to
+// a BaseURL.
 type connectMethodKey struct {
 	proxy, scheme, addr string
 }

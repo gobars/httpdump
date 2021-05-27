@@ -182,7 +182,7 @@ type Request struct {
 	//
 	// For client requests Host optionally overrides the Host
 	// header to send. If empty, the Request.Write method uses
-	// the value of URL.Host.
+	// the value of BaseURL.Host.
 	Host string
 
 	// Form contains the parsed form data, including both the URL
@@ -393,20 +393,20 @@ func (r *Request) Write(w io.Writer) error {
 // initial Request-URI line of the request with an absolute URI, per
 // section 5.1.2 of RFC 2616, including the scheme and host.
 // In either case, WriteProxy also writes a Host header, using
-// either r.Host or r.URL.Host.
+// either r.Host or r.BaseURL.Host.
 func (r *Request) WriteProxy(w io.Writer) error {
 	return r.write(w, true, nil, nil)
 }
 
-// errMissingHost is returned by Write when there is no Host or URL present in
+// errMissingHost is returned by Write when there is no Host or BaseURL present in
 // the Request.
-var errMissingHost = errors.New("http: Request.Write on Request with no Host or URL set")
+var errMissingHost = errors.New("http: Request.Write on Request with no Host or BaseURL set")
 
 // extraHeaders may be nil
 // waitForContinue may be nil
 func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitForContinue func() bool) error {
 	// Find the target host. Prefer the Host: header, but if that
-	// is not given, use the host from the request URL.
+	// is not given, use the host from the request BaseURL.
 	//
 	// Clean the host, in case it arrives with unexpected stuff in it.
 	host := cleanHost(req.Host)
@@ -426,7 +426,7 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 	if usingProxy && req.URL.Scheme != "" && req.URL.Opaque == "" {
 		ruri = req.URL.Scheme + "://" + host + ruri
 	} else if req.Method == "CONNECT" && req.URL.Path == "" {
-		// CONNECT requests normally give just the host and port, not a full URL.
+		// CONNECT requests normally give just the host and port, not a full BaseURL.
 		ruri = host
 	}
 	// TODO(bradfitz): escape at least newlines in ruri?
@@ -597,7 +597,7 @@ func validMethod(method string) bool {
 	return len(method) > 0 && strings.IndexFunc(method, isNotToken) == -1
 }
 
-// NewRequest returns a new Request given a method, URL, and optional body.
+// NewRequest returns a new Request given a method, BaseURL, and optional body.
 //
 // If the provided body is also an io.Closer, the returned
 // Request.Body is set to body and will be closed by the Client
@@ -752,14 +752,14 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 		return nil, &badStringError{"malformed HTTP version", req.Proto}
 	}
 
-	// CONNECT requests are used two different ways, and neither uses a full URL:
+	// CONNECT requests are used two different ways, and neither uses a full BaseURL:
 	// The standard use is to tunnel HTTPS through an HTTP proxy.
 	// It looks like "CONNECT www.google.com:443 HTTP/1.1", and the parameter is
-	// just the authority section of a URL. This information should go in req.URL.Host.
+	// just the authority section of a BaseURL. This information should go in req.BaseURL.Host.
 	//
 	// The net/rpc package also uses CONNECT, but there the parameter is a path
-	// that starts with a slash. It can be parsed with the regular URL parser,
-	// and the path will end up in req.URL.Path, where it needs to be in order for
+	// that starts with a slash. It can be parsed with the regular BaseURL parser,
+	// and the path will end up in req.BaseURL.Path, where it needs to be in order for
 	// RPC to work.
 	justAuthority := req.Method == "CONNECT" && !strings.HasPrefix(rawurl, "/")
 	if justAuthority {

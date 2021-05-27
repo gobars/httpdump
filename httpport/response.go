@@ -117,7 +117,7 @@ func (r *Response) Cookies() []*Cookie {
 // when no Location header is present.
 var ErrNoLocation = errors.New("http: no Location header in response")
 
-// Location returns the URL of the response's "Location" header,
+// Location returns the BaseURL of the response's "Location" header,
 // if present.  Relative redirects are resolved relative to
 // the Response's Request.  ErrNoLocation is returned if no
 // Location header is present.

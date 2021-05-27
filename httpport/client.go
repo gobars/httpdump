@@ -106,7 +106,7 @@ type RoundTripper interface {
 	// callers wanting to reuse the body for subsequent requests
 	// must arrange to wait for the Close call before doing so.
 	//
-	// The Request's URL and Header fields must be initialized.
+	// The Request's BaseURL and Header fields must be initialized.
 	RoundTrip(*Request) (*Response, error)
 }
 
@@ -128,9 +128,9 @@ func refererForURL(lastReq, newReq *url.URL) string {
 	if lastReq.User != nil {
 		// This is not very efficient, but is the best we can
 		// do without:
-		// - introducing a new method on URL
+		// - introducing a new method on BaseURL
 		// - creating a race condition
-		// - copying the URL struct manually, which would cause
+		// - copying the BaseURL struct manually, which would cause
 		//   maintenance problems down the line
 		auth := lastReq.User.String() + "@"
 		referer = strings.Replace(referer, auth, "", 1)
@@ -219,7 +219,7 @@ func send(ireq *Request, rt RoundTripper, deadline time.Time) (*Response, error)
 
 	if req.URL == nil {
 		req.closeBody()
-		return nil, errors.New("http: nil Request.URL")
+		return nil, errors.New("http: nil Request.BaseURL")
 	}
 
 	if req.RequestURI != "" {
@@ -373,7 +373,7 @@ func shouldRedirectPost(statusCode int) bool {
 	return false
 }
 
-// Get issues a GET to the specified URL. If the response is one of
+// Get issues a GET to the specified BaseURL. If the response is one of
 // the following redirect codes, Get follows the redirect, up to a
 // maximum of 10 redirects:
 //
@@ -397,7 +397,7 @@ func Get(url string) (resp *Response, err error) {
 	return DefaultClient.Get(url)
 }
 
-// Get issues a GET to the specified URL. If the response is one of the
+// Get issues a GET to the specified BaseURL. If the response is one of the
 // following redirect codes, Get follows the redirect after calling the
 // Client's CheckRedirect function:
 //
@@ -434,13 +434,13 @@ func (c *Client) doFollowingRedirects(ireq *Request, shouldRedirect func(int) bo
 
 	if ireq.URL == nil {
 		ireq.closeBody()
-		return nil, errors.New("http: nil Request.URL")
+		return nil, errors.New("http: nil Request.BaseURL")
 	}
 
 	req := ireq
 	deadline := c.deadline()
 
-	urlStr := "" // next relative or absolute URL to fetch (after first request)
+	urlStr := "" // next relative or absolute BaseURL to fetch (after first request)
 	redirectFailed := false
 	for redirect := 0; ; redirect++ {
 		if redirect != 0 {
@@ -528,7 +528,7 @@ func defaultCheckRedirect(req *Request, via []*Request) error {
 	return nil
 }
 
-// Post issues a POST to the specified URL.
+// Post issues a POST to the specified BaseURL.
 //
 // Caller should close resp.Body when done reading from it.
 //
@@ -542,7 +542,7 @@ func Post(url string, bodyType string, body io.Reader) (resp *Response, err erro
 	return DefaultClient.Post(url, bodyType, body)
 }
 
-// Post issues a POST to the specified URL.
+// Post issues a POST to the specified BaseURL.
 //
 // Caller should close resp.Body when done reading from it.
 //
@@ -559,8 +559,8 @@ func (c *Client) Post(url string, bodyType string, body io.Reader) (resp *Respon
 	return c.doFollowingRedirects(req, shouldRedirectPost)
 }
 
-// PostForm issues a POST to the specified URL, with data's keys and
-// values URL-encoded as the request body.
+// PostForm issues a POST to the specified BaseURL, with data's keys and
+// values BaseURL-encoded as the request body.
 //
 // The Content-Type header is set to application/x-www-form-urlencoded.
 // To set other headers, use NewRequest and DefaultClient.Do.
@@ -573,8 +573,8 @@ func PostForm(url string, data url.Values) (resp *Response, err error) {
 	return DefaultClient.PostForm(url, data)
 }
 
-// PostForm issues a POST to the specified URL,
-// with data's keys and values URL-encoded as the request body.
+// PostForm issues a POST to the specified BaseURL,
+// with data's keys and values BaseURL-encoded as the request body.
 //
 // The Content-Type header is set to application/x-www-form-urlencoded.
 // To set other headers, use NewRequest and DefaultClient.Do.
@@ -585,7 +585,7 @@ func (c *Client) PostForm(url string, data url.Values) (resp *Response, err erro
 	return c.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()))
 }
 
-// Head issues a HEAD to the specified URL.  If the response is one of
+// Head issues a HEAD to the specified BaseURL.  If the response is one of
 // the following redirect codes, Head follows the redirect, up to a
 // maximum of 10 redirects:
 //
@@ -599,7 +599,7 @@ func Head(url string) (resp *Response, err error) {
 	return DefaultClient.Head(url)
 }
 
-// Head issues a HEAD to the specified URL.  If the response is one of the
+// Head issues a HEAD to the specified BaseURL.  If the response is one of the
 // following redirect codes, Head follows the redirect after calling the
 // Client's CheckRedirect function:
 //

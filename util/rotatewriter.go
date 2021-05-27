@@ -105,7 +105,7 @@ func (p *RotateWriter) printBackground(ctx context.Context) {
 	}
 }
 
-func (p *RotateWriter) Wait() {
+func (p *RotateWriter) Close() error {
 	if p.allowDiscarded {
 		if val := atomic.LoadUint32(&p.discarded); val > 0 {
 			p.queue <- fmt.Sprintf("\n#%d discarded", val)
@@ -113,4 +113,5 @@ func (p *RotateWriter) Wait() {
 	}
 	close(p.queue)
 	p.wg.Wait()
+	return nil
 }

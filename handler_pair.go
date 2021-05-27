@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
-	"encoding/json"
 	"fmt"
 	"github.com/bingoohuang/gg/pkg/ss"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
@@ -19,11 +17,9 @@ import (
 	"github.com/bingoohuang/httpdump/httpport"
 
 	"bufio"
-
-	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
-// ConnectionHandlerPair impl ConnectionHandler
+// ConnectionHandlerPair impl ConnectionHandler.
 type ConnectionHandlerPair struct {
 	option *Option
 	sender Sender
@@ -193,7 +189,7 @@ func (h *HttpTrafficHandlerPair) printCurlRequest(req Req, uuid []byte, seq int3
 	//TODO: expect-100 continue handle
 
 	h.writeLine("\n### REQUEST ", h.key.Src(), "->", h.key.Dst(), h.startTime.Format(time.RFC3339Nano))
-	h.writeLineFormat("curl -X %v http://%v%v \\\n", req.GetMethod(), h.key.Dst(), req.GetRequestURI())
+	h.writeFormat("curl -X %v http://%v%v \\\n", req.GetMethod(), h.key.Dst(), req.GetRequestURI())
 	var reader io.ReadCloser
 	deCompressed := false
 	o := h.option
@@ -219,9 +215,9 @@ func (h *HttpTrafficHandlerPair) printCurlRequest(req Req, uuid []byte, seq int3
 		}
 		for idx, value := range values {
 			if idx == len(req.GetHeader()) && idx == len(values)-1 {
-				h.writeLineFormat("    -H '%v: %v'\n", name, value)
+				h.writeFormat("    -H '%v: %v'\n", name, value)
 			} else {
-				h.writeLineFormat("    -H '%v: %v' \\\n", name, value)
+				h.writeFormat("    -H '%v: %v' \\\n", name, value)
 			}
 		}
 	}
@@ -236,7 +232,7 @@ func (h *HttpTrafficHandlerPair) printCurlRequest(req Req, uuid []byte, seq int3
 		if n, err := DumpBody(reader, fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
 		} else if n > 0 {
-			h.writeLineFormat(" -d '@%v'", fn)
+			h.writeFormat(" -d '@%v'", fn)
 		}
 	} else {
 		br := bufio.NewReader(reader)
@@ -245,9 +241,9 @@ func (h *HttpTrafficHandlerPair) printCurlRequest(req Req, uuid []byte, seq int3
 		if err != nil && err != io.EOF {
 			// read error
 		} else if err == io.EOF && !strings.Contains(firstLine, "'") {
-			h.writeLineFormat("    -d '%v'", strconv.Quote(firstLine))
+			h.writeFormat("    -d '%v'", strconv.Quote(firstLine))
 		} else {
-			h.writeLineFormat("    -d @- << HTTP_DUMP_BODY_EOF\n")
+			h.writeFormat("    -d @- << HTTP_DUMP_BODY_EOF\n")
 			h.write(firstLine)
 			for {
 				line, err := br.ReadString('\n')
@@ -302,7 +298,7 @@ func (h *HttpTrafficHandlerPair) printNormalRequest(r Req, uuid []byte, seq int3
 	}
 
 	if hasBody {
-		h.writeLine()
+		h.writeFormat("\r\n")
 		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
@@ -381,87 +377,4 @@ func tryDecompress(header http.Header, reader io.ReadCloser) (io.ReadCloser, boo
 	}
 
 	return reader, false
-}
-
-// print http request/response body
-func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
-	// deal with content encoding such as gzip, deflate
-	nr, decompressed := tryDecompress(header, reader)
-	if decompressed {
-		defer nr.Close()
-	}
-
-	// check mime type and charset
-	contentType := header.Get("Content-Type")
-	if contentType == "" {
-		// TODO: detect content type using httpport.DetectContentType()
-	}
-	mimeTypeStr, charset := parseContentType(contentType)
-	mt := parseMimeType(mimeTypeStr)
-	isText := mt.isTextContent()
-	isBinary := mt.isBinaryContent()
-
-	if !isText {
-		if err := h.printNonTextTypeBody(nr, contentType, isBinary); err != nil {
-			h.writeLine("{Read content error", err, "}")
-		}
-		return
-	}
-
-	var body string
-	var err error
-	if charset == "" {
-		// response do not set charset, try to detect
-		if data, err := io.ReadAll(nr); err == nil {
-			// TODO: try to detect charset
-			body = string(data)
-		}
-	} else {
-		body, err = readToStringWithCharset(nr, charset)
-	}
-	if err != nil {
-		h.writeLine("{Read body failed", err, "}")
-		return
-	}
-
-	// prettify json
-	if mt.subType == "json" || likeJSON(body) {
-		var jsonValue interface{}
-		_ = json.Unmarshal([]byte(body), &jsonValue)
-		if prettyJSON, err := json.MarshalIndent(jsonValue, "", "    "); err == nil {
-			body = string(prettyJSON)
-		}
-	}
-	h.writeLine(body)
-	h.writeLine()
-}
-
-func (h *HandlerBase) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
-	if h.option.Force && !isBinary {
-		data, err := ioutil.ReadAll(reader)
-		if err != nil {
-			return err
-		}
-		// TODO: try to detect charset
-		h.writeLine(string(data))
-		h.writeLine()
-	} else {
-		h.writeLine("{Non-text body, content-type:", contentType, ", len:", discardAll(reader), "}")
-	}
-	return nil
-}
-
-func discardAll(r io.Reader) (discarded int) {
-	return tcpreader.DiscardBytesToEOF(r)
-}
-
-func bodyFileName(prefix string, uuid []byte, seq int32, req string, t time.Time) string {
-	timeStr := t.Format("20060102")
-	// parse id from uuid like id:a4af2382c0a6df1c6fb4280a,Seq:1874077706,Ack:2080684195
-	if f := bytes.IndexRune(uuid, ':'); f >= 0 {
-		if c := bytes.IndexRune(uuid[f:], ','); c >= 0 {
-			uuid = uuid[f+1 : f+c]
-		}
-	}
-	return fmt.Sprintf("%s.%s.%d.%s.%s", prefix, timeStr, seq, uuid, req)
 }
