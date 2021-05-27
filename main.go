@@ -41,7 +41,7 @@ type Option struct {
 	Curl     bool          `usage:"Output an equivalent curl command for each http request"`
 	DumpBody string        `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
 	Mode     string        `val:"fast" usage:"std/fast/pair"`
-	Output   string        `usage:"File to write result, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m specified max size, suffix :append specified append mode"`
+	Output   string        `usage:"File to write result, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode"`
 	Idle     time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
 
 	dumpMax uint32

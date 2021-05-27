@@ -362,21 +362,25 @@ func tryDecompress(header http.Header, reader io.ReadCloser) (io.ReadCloser, boo
 	if contentEncoding == "" {
 		// do nothing
 		return reader, false
-	} else if strings.Contains(contentEncoding, "gzip") {
+	}
+
+	if strings.Contains(contentEncoding, "gzip") {
 		nr, err = gzip.NewReader(reader)
 		if err != nil {
 			return reader, false
 		}
 		return nr, true
-	} else if strings.Contains(contentEncoding, "deflate") {
+	}
+
+	if strings.Contains(contentEncoding, "deflate") {
 		nr, err = zlib.NewReader(reader)
 		if err != nil {
 			return reader, false
 		}
 		return nr, true
-	} else {
-		return reader, false
 	}
+
+	return reader, false
 }
 
 // print http request/response body
@@ -424,8 +428,7 @@ func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 	if mt.subType == "json" || likeJSON(body) {
 		var jsonValue interface{}
 		_ = json.Unmarshal([]byte(body), &jsonValue)
-		prettyJSON, err := json.MarshalIndent(jsonValue, "", "    ")
-		if err == nil {
+		if prettyJSON, err := json.MarshalIndent(jsonValue, "", "    "); err == nil {
 			body = string(prettyJSON)
 		}
 	}
@@ -440,8 +443,7 @@ func (h *HandlerBase) printNonTextTypeBody(reader io.Reader, contentType string,
 			return err
 		}
 		// TODO: try to detect charset
-		str := string(data)
-		h.writeLine(str)
+		h.writeLine(string(data))
 		h.writeLine()
 	} else {
 		h.writeLine("{Non-text body, content-type:", contentType, ", len:", discardAll(reader), "}")
