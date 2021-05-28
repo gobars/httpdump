@@ -55,7 +55,7 @@ func ParseOutputPath(outputPath string) (string, bool, uint64) {
 	appendMode := s != outputPath
 	maxSize := uint64(0)
 	if pos := strings.LastIndex(s, ":"); pos > 0 {
-		if !digits.MatchString(s[pos+1:]) {
+		if digits.MatchString(s[pos+1:]) {
 			maxSize, _ = man.ParseBytes(s[pos+1:])
 			s = s[:pos]
 		}
