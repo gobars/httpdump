@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/bingoohuang/gg/pkg/man"
@@ -61,9 +62,15 @@ func ParseOutputPath(outputPath string) (string, bool, uint64) {
 	return s, appendMode, maxSize
 }
 
+type LfStdout struct{}
+
+func (l LfStdout) Write(p []byte) (n int, err error) {
+	return fmt.Fprintf(os.Stdout, "%s\n", bytes.TrimSpace(p))
+}
+
 func createWriter(outputPath string, maxSize uint64, append bool) (io.Writer, func()) {
 	if outputPath == "stdout" {
-		return os.Stdout, func() {}
+		return &LfStdout{}, func() {}
 	}
 
 	bw := NewRotateFileWriter(outputPath, maxSize, append)
