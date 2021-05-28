@@ -82,6 +82,9 @@ func (o *Option) run() {
 
 	var wg sync.WaitGroup
 
+	if len(o.Output) == 0 {
+		o.Output = []string{"stdout"}
+	}
 	senders := make(Senders, 0, len(o.Output))
 	for _, out := range o.Output {
 		if addr, ok := IsURL(out); ok {
@@ -115,6 +118,14 @@ func (o *Option) run() {
 }
 
 func IsURL(out string) (string, bool) {
+	if out == "stdout" {
+		return "", false
+	}
+
+	if _, appendMode, maxSize := util.ParseOutputPath(out); appendMode || maxSize > 0 {
+		return "", false
+	}
+
 	if ss.HasPrefix(out, "http://", "https://") {
 		return out, true
 	}

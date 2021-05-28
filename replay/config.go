@@ -131,7 +131,7 @@ func replay(client *HTTPClient, payload Msg) error {
 	if r, err := client.Send(payload.Data); err != nil {
 		log.Printf("E! failed to replay, error %v", err)
 	} else if r != nil {
-		log.Printf("replay %s %s, cost %s, r status: %d", r.Method, r.URL, r.Cost, r.StatusCode)
+		log.Printf("replay %s %s, cost %s, status: %d", r.Method, r.URL, r.Cost, r.StatusCode)
 	}
 	return nil
 }

@@ -26,14 +26,7 @@ type RotateWriter struct {
 }
 
 func NewRotateWriter(ctx context.Context, outputPath string, outChanSize uint, allowDiscarded bool) *RotateWriter {
-	s := strings.ReplaceAll(outputPath, ":append", "")
-	appendMode := s != outputPath
-	maxSize := uint64(0)
-	if pos := strings.LastIndex(s, ":"); pos > 0 {
-		maxSize, _ = man.ParseBytes(s[pos+1:])
-		s = s[:pos]
-	}
-
+	s, appendMode, maxSize := ParseOutputPath(outputPath)
 	w, closer := createWriter(s, maxSize, appendMode)
 	p := &RotateWriter{
 		queue:          make(chan string, outChanSize),
@@ -52,8 +45,19 @@ func NewRotateWriter(ctx context.Context, outputPath string, outChanSize uint, a
 	return p
 }
 
+func ParseOutputPath(outputPath string) (string, bool, uint64) {
+	s := strings.ReplaceAll(outputPath, ":append", "")
+	appendMode := s != outputPath
+	maxSize := uint64(0)
+	if pos := strings.LastIndex(s, ":"); pos > 0 {
+		maxSize, _ = man.ParseBytes(s[pos+1:])
+		s = s[:pos]
+	}
+	return s, appendMode, maxSize
+}
+
 func createWriter(outputPath string, maxSize uint64, append bool) (io.Writer, func()) {
-	if outputPath == "" {
+	if outputPath == "stdout" {
 		return os.Stdout, func() {}
 	}
 
