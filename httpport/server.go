@@ -1838,7 +1838,7 @@ func cleanPath(p string) string {
 // Find a handler on a handler map given a path string
 // Most-specific (longest) pattern wins
 func (mux *ServeMux) match(path string) (h Handler, pattern string) {
-	var n = 0
+	n := 0
 	for k, v := range mux.m {
 		if !pathMatch(k, path) {
 			continue
@@ -2555,7 +2555,6 @@ func numLeadingCRorLF(v []byte) (n int) {
 		break
 	}
 	return
-
 }
 
 func strSliceContains(ss []string, s string) bool {

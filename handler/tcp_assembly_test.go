@@ -1,13 +1,13 @@
-package main
+package handler
 
 import (
+	"testing"
+
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestReceiveWindow(t *testing.T) {
-
 	window := newReceiveWindow(4)
 
 	// started insert

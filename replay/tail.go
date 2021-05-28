@@ -3,12 +3,13 @@ package replay
 import (
 	"context"
 	"fmt"
-	"github.com/bingoohuang/httpdump/globpath"
-	"github.com/influxdata/tail"
-	"golang.org/x/sync/errgroup"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/bingoohuang/httpdump/globpath"
+	"github.com/influxdata/tail"
+	"golang.org/x/sync/errgroup"
 )
 
 type Tail struct {
@@ -16,9 +17,8 @@ type Tail struct {
 	fromBeginning bool
 	options       *Options
 
-	wg    sync.WaitGroup
-	lines chan []byte
-	poll  bool
+	wg   sync.WaitGroup
+	poll bool
 }
 
 func (t *Tail) TailPayloads(ctx context.Context) error {
@@ -44,7 +44,6 @@ func (t *Tail) TailPayloads(ctx context.Context) error {
 			}
 		}
 	}
-
 }
 
 func (t *Tail) tailNewFiles(ctx context.Context, tailers map[string]*tail.Tail, offsets map[string]int64) error {
@@ -79,7 +78,6 @@ func (t *Tail) tailNewFiles(ctx context.Context, tailers map[string]*tail.Tail, 
 				Pipe:      false,
 				Logger:    tail.DiscardingLogger,
 			})
-
 		if err != nil {
 			log.Printf("Failed to open file (%s): %v", file, err)
 			continue

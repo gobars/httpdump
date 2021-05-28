@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"bufio"
@@ -6,10 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/gopacket/layers"
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/google/gopacket/layers"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/tcpassembly"
@@ -85,7 +86,7 @@ func (h HttpRsp) GetStatusCode() int      { return h.Response.StatusCode }
 
 func MapKeys(header http.Header) []string {
 	keys := make([]string, 0, len(header))
-	for k, _ := range header {
+	for k := range header {
 		keys = append(keys, k)
 	}
 

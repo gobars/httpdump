@@ -2,17 +2,19 @@ package replay
 
 import (
 	"context"
-	"github.com/bingoohuang/gg/pkg/rest"
-	"github.com/bingoohuang/httpdump/globpath"
-	"go.uber.org/multierr"
 	"io/fs"
 	"log"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/rest"
+	"github.com/bingoohuang/httpdump/globpath"
+	"go.uber.org/multierr"
 )
 
 type Config struct {
@@ -23,6 +25,7 @@ type Config struct {
 	RedirectLimit  int
 	InsecureVerify bool
 	Poll           bool
+	Verbose        string
 }
 
 func (c *Config) StartReplay(ctx context.Context, payloadCh <-chan string) error {
@@ -127,7 +130,7 @@ func (c *Config) createParseOptions() *Options {
 const layout = `2006-01-02 15:04:05.000000`
 
 func replay(client *HTTPClient, payload Msg) error {
-	//logTitle(payload.Title, "", "")
+	logTitle(payload.Title, "", "")
 	if r, err := client.Send(payload.Data); err != nil {
 		log.Printf("E! failed to replay, error %v", err)
 	} else if r != nil {
@@ -135,6 +138,8 @@ func replay(client *HTTPClient, payload Msg) error {
 	}
 	return nil
 }
+
+var timeUnixNano = regexp.MustCompile(`\d{19,}`)
 
 func logTitle(title []byte, method, uri string) {
 	if len(title) == 0 {
@@ -144,16 +149,18 @@ func logTitle(title []byte, method, uri string) {
 	s := strings.TrimSpace(string(title))
 
 	// 1 fda9138b7f0000016ac0ad3e 1621835869410250000 0
-	if v := strings.Fields(s); len(v) > 2 {
-		if nano, err := strconv.ParseInt(v[2], 10, 64); err == nil {
-			if method != "" {
-				if u, _ := url.Parse(uri); u != nil {
-					uri = u.Path
-				}
-				log.Printf("Timestamp: %s Title: %s Method: %s, URI: %s", time.Unix(0, nano).Format(layout), s, method, uri)
-			} else {
-				log.Printf("Timestamp: %s Title:%s", time.Unix(0, nano).Format(layout), s)
+	if found := timeUnixNano.FindString(s); found != "" {
+		if nano, err := strconv.ParseInt(found, 10, 64); err == nil {
+			tim := time.Unix(0, nano).Format(layout)
+			if method == "" {
+				log.Printf("Timestamp: %s Title:%s", tim, s)
+				return
 			}
+
+			if u, _ := url.Parse(uri); u != nil {
+				uri = u.Path
+			}
+			log.Printf("Timestamp: %s Title: %s Method: %s, URI: %s", tim, s, method, uri)
 			return
 		}
 	}
@@ -179,5 +186,6 @@ func (c *Config) CreateHTTPClientConfig() *HTTPClientConfig {
 		InsecureVerify: c.InsecureVerify,
 		BaseURL:        u,
 		Methods:        c.Method,
+		Verbose:        c.Verbose,
 	}
 }

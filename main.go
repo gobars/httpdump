@@ -2,26 +2,21 @@ package main
 
 import (
 	"context"
-	"github.com/bingoohuang/gg/pkg/rest"
-	"github.com/bingoohuang/gg/pkg/ss"
-	"github.com/bingoohuang/httpdump/replay"
-	"github.com/bingoohuang/httpdump/util"
-	"github.com/google/gopacket/tcpassembly"
 	"log"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/rest"
+	"github.com/bingoohuang/gg/pkg/ss"
+	"github.com/bingoohuang/httpdump/handler"
+	"github.com/bingoohuang/httpdump/replay"
+	"github.com/bingoohuang/httpdump/util"
+	"github.com/google/gopacket/tcpassembly"
 
 	"github.com/bingoohuang/gg/pkg/ctx"
 	"github.com/bingoohuang/gg/pkg/flagparse"
-)
-
-const (
-	LevelL1     = "l1"
-	LevelUrl    = "url"
-	LevelHeader = "header"
 )
 
 // Option Command line options.
@@ -37,9 +32,10 @@ type Option struct {
 	Chan    uint `val:"10240" usage:"Channel size to buffer tcp packets"`
 	OutChan uint `val:"40960" usage:"Output channel size to buffer tcp packets"`
 
-	Host   string `usage:"Filter by request host, using wildcard match(*, ?)"`
-	Uri    string `usage:"Filter by request url path, using wildcard match(*, ?)"`
-	Method string `usage:"Filter by request method, multiple by comma"`
+	Host    string `usage:"Filter by request host, using wildcard match(*, ?)"`
+	Uri     string `usage:"Filter by request url path, using wildcard match(*, ?)"`
+	Method  string `usage:"Filter by request method, multiple by comma"`
+	Verbose string `usage:"Verbose flag, available req/rsp/all for http replay dump"`
 
 	Status util.IntSetFlag `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 
@@ -54,7 +50,7 @@ type Option struct {
 
 	Idle time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
 
-	dumpNum, dumpMax uint32
+	dumpMax uint32
 
 	// https://github.com/influxdata/telegraf/blob/master/plugins/inputs/tail/tail.go
 	//  ## File names or a pattern to tail.
@@ -66,26 +62,30 @@ type Option struct {
 	//  ##   "/var/log/log[!1-2]*  -> tail files without 1-2
 	//  ##   "/var/log/log[^1-2]*  -> identical behavior as above
 	File string `flag:"f" usage:"File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll"`
+
+	handlerOption *handler.Option
 }
 
-func (Option) VersionInfo() string { return "httpdump v1.2.2 2021-05-28 10:16:22" }
+func (Option) VersionInfo() string { return "httpdump v1.2.3 2021-05-28 13:14:31" }
 
 func main() {
 	option := &Option{}
 	flagparse.Parse(option)
+
+	option.handlerOption = option.createHandleOption()
 	option.run()
 }
 
 func (o *Option) run() {
 	c, _ := ctx.RegisterSignals(nil)
-	rc := replay.Config{Method: o.Method, File: o.File}
+	rc := replay.Config{Method: o.Method, File: o.File, Verbose: o.Verbose}
 
 	var wg sync.WaitGroup
 
 	if len(o.Output) == 0 {
 		o.Output = []string{"stdout"}
 	}
-	senders := make(Senders, 0, len(o.Output))
+	senders := make(handler.Senders, 0, len(o.Output))
 	for _, out := range o.Output {
 		if addr, ok := IsURL(out); ok {
 			rc.Replay = addr
@@ -150,42 +150,28 @@ func (ss *ReplaySender) Send(msg string, countDiscards bool) {
 	ss.ch <- msg
 }
 
-type Senders []Sender
-
-func (ss Senders) Send(msg string, countDiscards bool) {
-	for _, s := range ss {
-		s.Send(msg, countDiscards)
-	}
-}
-
-func (ss Senders) Close() error {
-	for _, s := range ss {
-		s.Close()
-	}
-
-	return nil
-}
-
-func (o *Option) createAssembler(c context.Context, sender Sender) util.Assembler {
+func (o *Option) createAssembler(c context.Context, sender handler.Sender) util.Assembler {
 	switch o.Mode {
 	case "fast", "pair":
 		h := o.createConnectionHandler(sender)
-		return newTCPAssembler(h, o.Chan, o.Ip, uint16(o.Port), o.Resp)
+		return handler.NewTCPAssembler(h, o.Chan, o.Ip, uint16(o.Port), o.Resp)
 	default:
-		return createTcpStdAssembler(c, o, sender)
+		return o.createTcpStdAssembler(c, sender)
 	}
 }
 
-func createTcpStdAssembler(c context.Context, o *Option, printer Sender) *TcpStdAssembler {
-	assembler := tcpassembly.NewAssembler(tcpassembly.NewStreamPool(NewFactory(c, o, printer)))
-	return &TcpStdAssembler{Assembler: assembler}
+func (o *Option) createTcpStdAssembler(c context.Context, printer handler.Sender) *handler.TcpStdAssembler {
+	f := handler.NewFactory(c, o.handlerOption, printer)
+	p := tcpassembly.NewStreamPool(f)
+	assembler := tcpassembly.NewAssembler(p)
+	return &handler.TcpStdAssembler{Assembler: assembler}
 }
 
-func (o *Option) createConnectionHandler(sender Sender) ConnectionHandler {
+func (o *Option) createConnectionHandler(sender handler.Sender) handler.ConnectionHandler {
 	if o.Mode == "fast" {
-		return &ConnectionHandlerFast{option: o, sender: sender}
+		return &handler.ConnectionHandlerFast{Option: o.handlerOption, Sender: sender}
 	} else {
-		return &ConnectionHandlerPair{option: o, sender: sender}
+		return &handler.ConnectionHandlerPair{Option: o.handlerOption, Sender: sender}
 	}
 }
 
@@ -212,10 +198,17 @@ func (o *Option) processDumpBody() {
 	}
 }
 
-func (o *Option) CanDump() bool {
-	if o.DumpBody == "" {
-		return false
+func (o *Option) createHandleOption() *handler.Option {
+	return &handler.Option{
+		Resp:     o.Resp,
+		Host:     o.Host,
+		Uri:      o.Uri,
+		Method:   o.Method,
+		Status:   o.Status,
+		Level:    o.Level,
+		DumpBody: o.DumpBody,
+		DumpMax:  o.dumpMax,
+		Force:    o.Force,
+		Curl:     o.Curl,
 	}
-
-	return o.dumpMax <= 0 || atomic.LoadUint32(&o.dumpNum) < o.dumpMax
 }

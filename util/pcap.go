@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"log"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 )
 
 type Assembler interface {
@@ -50,7 +51,7 @@ func LoopPackets(ctx context.Context, packets chan gopacket.Packet, assembler As
 
 func CreatePacketsChan(input, bpf, host, ip string, port uint) (chan gopacket.Packet, error) {
 	if v, err := os.Stat(input); err == nil && !v.IsDir() {
-		var handle, err = pcap.OpenOffline(input) // read from pcap file
+		handle, err := pcap.OpenOffline(input) // read from pcap file
 		if err != nil {
 			return nil, fmt.Errorf("open file %v error: %w", input, err)
 		}
@@ -69,7 +70,7 @@ func CreatePacketsChan(input, bpf, host, ip string, port uint) (chan gopacket.Pa
 			return nil, fmt.Errorf("find device error: %w", err)
 		}
 
-		var packetsSlice = make([]chan gopacket.Packet, len(interfaces))
+		packetsSlice := make([]chan gopacket.Packet, len(interfaces))
 		for _, itf := range interfaces {
 			localPackets, err := OpenSingleDevice(itf.Name, bpf, ip, uint16(port))
 			if err != nil {
@@ -127,7 +128,7 @@ func setDeviceFilter(handle *pcap.Handle, bpf, filterIP string, filterPort uint1
 		return handle.SetBPFFilter(bpf)
 	}
 
-	var bpfFilter = "tcp"
+	bpfFilter := "tcp"
 	if filterPort != 0 {
 		bpfFilter += " port " + strconv.Itoa(int(filterPort))
 	}
@@ -182,7 +183,7 @@ func cutMask(addr net.Addr) string {
 
 // adapter multi channels to one channel. used to aggregate multi devices data
 func mergeChannel(channels []chan gopacket.Packet) chan gopacket.Packet {
-	var channel = make(chan gopacket.Packet)
+	channel := make(chan gopacket.Packet)
 	for _, ch := range channels {
 		go func(c chan gopacket.Packet) {
 			for packet := range c {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/bingoohuang/gg/pkg/man"
 	"io"
 	"log"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/man"
 )
 
 // RotateWriter output parsed http messages
@@ -123,7 +124,6 @@ func (p *RotateWriter) printBackground(ctx context.Context) {
 			return
 		}
 	}
-
 }
 
 func (p *RotateWriter) Close() error {

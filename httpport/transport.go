@@ -149,7 +149,7 @@ type Transport struct {
 	// nextProtoOnce guards initialization of TLSNextProto and
 	// h2transport (via onceSetNextProtoDefaults)
 	nextProtoOnce sync.Once
-	//h2transport   *http2Transport // non-nil if http2 wired up
+	// h2transport   *http2Transport // non-nil if http2 wired up
 
 	// TODO: tunable on global max cached connections
 	// TODO: tunable on timeout on cached connections
@@ -1362,10 +1362,12 @@ func (e *httpError) Error() string   { return e.err }
 func (e *httpError) Timeout() bool   { return e.timeout }
 func (e *httpError) Temporary() bool { return true }
 
-var errTimeout error = &httpError{err: "net/http: timeout awaiting response headers", timeout: true}
-var errClosed error = &httpError{err: "net/http: server closed connection before response was received"}
-var errRequestCanceled = errors.New("net/http: request canceled")
-var errRequestCanceledConn = errors.New("net/http: request canceled while waiting for connection") // TODO: unify?
+var (
+	errTimeout             error = &httpError{err: "net/http: timeout awaiting response headers", timeout: true}
+	errClosed              error = &httpError{err: "net/http: server closed connection before response was received"}
+	errRequestCanceled           = errors.New("net/http: request canceled")
+	errRequestCanceledConn       = errors.New("net/http: request canceled while waiting for connection") // TODO: unify?
+)
 
 func nop() {}
 

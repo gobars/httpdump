@@ -164,8 +164,10 @@ func (h htmlSig) match(data []byte, firstNonWS int) string {
 	return "text/html; charset=utf-8"
 }
 
-var mp4ftype = []byte("ftyp")
-var mp4 = []byte("mp4")
+var (
+	mp4ftype = []byte("ftyp")
+	mp4      = []byte("mp4")
+)
 
 type mp4Sig struct{}
 

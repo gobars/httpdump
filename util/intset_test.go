@@ -1,7 +1,10 @@
 package util
 
-import "testing"
-import "github.com/stretchr/testify/assert"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestIntSet_String(t *testing.T) {
 	assert.Equal(t, "1", NewIntSet(NewIntRange(1, 1)).String())

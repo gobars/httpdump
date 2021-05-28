@@ -14,9 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	testdataDir = getTestdataDir()
-)
+var testdataDir = getTestdataDir()
 
 func TestCompileAndMatch(t *testing.T) {
 	type test struct {
@@ -25,7 +23,7 @@ func TestCompileAndMatch(t *testing.T) {
 	}
 
 	tests := []test{
-		//test super asterisk
+		// test super asterisk
 		{path: filepath.Join(testdataDir, "**"), matches: 7},
 		// test single asterisk
 		{path: filepath.Join(testdataDir, "*.log"), matches: 3},

@@ -4,14 +4,17 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"log"
+
+	"golang.org/x/sync/errgroup"
 )
 
-type StarterFn func(data []byte) bool
-type TerminatorFn func(data []byte) bool
-type PayloadHandler func(payload Msg) error
+type (
+	StarterFn      func(data []byte) bool
+	TerminatorFn   func(data []byte) bool
+	PayloadHandler func(payload Msg) error
+)
 
 type Options struct {
 	Starter        StarterFn

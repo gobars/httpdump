@@ -1,24 +1,27 @@
-package main
+package handler
 
 import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/bingoohuang/gg/pkg/handy"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"io"
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/handy"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 // gopacket provide a tcp connection, however it split one tcp connection into two stream.
 // So it is hard to match http request and response. we make our own connection here
 
-const maxTCPSeq uint32 = 0xFFFFFFFF
-const tcpSeqWindow = 0x0000FFFF
+const (
+	maxTCPSeq    uint32 = 0xFFFFFFFF
+	tcpSeqWindow        = 0x0000FFFF
+)
 
 // TCPAssembler do tcp package assemble
 type TCPAssembler struct {
@@ -31,7 +34,7 @@ type TCPAssembler struct {
 	processResp bool
 }
 
-func newTCPAssembler(handler ConnectionHandler, chanSize uint, filterIP string, filterPort uint16, processResp bool) *TCPAssembler {
+func NewTCPAssembler(handler ConnectionHandler, chanSize uint, filterIP string, filterPort uint16, processResp bool) *TCPAssembler {
 	return &TCPAssembler{
 		connections: map[string]*TCPConnection{},
 		handler:     handler,
@@ -202,8 +205,7 @@ func (c *TCPConnection) onReceive(src Endpoint, tcp *layers.TCP, timestamp time.
 
 	send.AppendPacket(tcp)
 
-	if tcp.SYN { /* do nothing*/
-	}
+	// if tcp.SYN { /* do nothing*/ }
 
 	if tcp.ACK { // confirm
 		confirm.ConfirmPacket(tcp.Ack)
@@ -218,8 +220,8 @@ func (c *TCPConnection) onReceive(src Endpoint, tcp *layers.TCP, timestamp time.
 // just close this connection?
 func (c *TCPConnection) flushOlderThan() {
 	// flush all data
-	//c.requestStream.window
-	//c.responseStream.window
+	// c.requestStream.window
+	// c.responseStream.window
 	// remove and close c
 	c.requestStream.SetClosed(true)
 	c.responseStream.SetClosed(true)
@@ -243,11 +245,9 @@ type NetworkStream struct {
 	ignore bool
 	closed bool
 
-	src, dst      Endpoint
-	isRequest     bool
-	LastUUID      []byte
-	uuidReadState int
-	lastPacket    *layers.TCP
+	src, dst  Endpoint
+	isRequest bool
+	LastUUID  []byte
 }
 
 func (s *NetworkStream) GetLastUUID() []byte   { return s.LastUUID }
@@ -385,7 +385,7 @@ func (w *ReceiveWindow) destroy() {
 
 func (w *ReceiveWindow) insert(packet *layers.TCP) {
 	if len(packet.Payload) == 0 {
-		return //ignore empty data packet
+		return // ignore empty data packet
 	}
 
 	if w.expectBegin != 0 && compareTCPSeq(w.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
@@ -448,7 +448,7 @@ func (w *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 				}
 				packet.Payload = packet.Payload[duplicatedSize:]
 			} else if diff < 0 {
-				//TODO: we lose packet here
+				// TODO: we lose packet here
 			}
 		}
 		c <- packet

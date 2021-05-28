@@ -10,7 +10,7 @@ import (
 func ParseIntSet(str string) (*IntSet, error) {
 	var intSet IntSet
 	for _, item := range strings.Split(str, ",") {
-		var ns = strings.Split(item, "-")
+		ns := strings.Split(item, "-")
 		if len(ns) > 2 {
 			return nil, errors.New("illegal range str: " + item)
 		}

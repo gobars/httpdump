@@ -1,11 +1,11 @@
-package main
+package handler
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
 	"fmt"
-	"github.com/bingoohuang/gg/pkg/ss"
 	"io"
 	"net/http"
 	"os"
@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bingoohuang/httpdump/httpport"
+	"github.com/bingoohuang/gg/pkg/ss"
 
-	"bufio"
+	"github.com/bingoohuang/httpdump/httpport"
 )
 
 // ConnectionHandlerPair impl ConnectionHandler.
 type ConnectionHandlerPair struct {
-	option *Option
-	sender Sender
+	Option *Option
+	Sender Sender
 	wg     sync.WaitGroup
 }
 
@@ -32,8 +32,8 @@ func (h *ConnectionHandlerPair) handle(src Endpoint, dst Endpoint, c *TCPConnect
 		HandlerBase: HandlerBase{
 			key:    &ConnectionKey{src: src, dst: dst},
 			buffer: new(bytes.Buffer),
-			option: h.option,
-			sender: h.sender,
+			option: h.Option,
+			sender: h.Sender,
 		},
 	}
 	h.wg.Add(1)
@@ -153,8 +153,7 @@ func (h *HttpTrafficHandlerPair) handle(wg *sync.WaitGroup, c *TCPConnection) {
 					h.printResponse(resp, c.responseStream.GetLastUUID(), seqFn())
 					h.sender.Send(h.buffer.String(), true)
 				}
-			} else if resp.StatusCode == 417 {
-
+				// } else if resp.StatusCode == 417 {
 			}
 		}
 	}
@@ -163,7 +162,7 @@ func (h *HttpTrafficHandlerPair) handle(wg *sync.WaitGroup, c *TCPConnection) {
 }
 
 func (h *HttpTrafficHandlerPair) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
-	//TODO: websocket
+	// TODO: websocket
 }
 
 // print http request
@@ -186,7 +185,7 @@ var blockHeaders = map[string]bool{
 
 // print http request curl command
 func (h *HttpTrafficHandlerPair) printCurlRequest(req Req, uuid []byte, seq int32) {
-	//TODO: expect-100 continue handle
+	// TODO: expect-100 continue handle
 
 	h.writeLine("\n### REQUEST ", h.key.Src(), "->", h.key.Dst(), h.startTime.Format(time.RFC3339Nano))
 	h.writeFormat("curl -X %v http://%v%v \\\n", req.GetMethod(), h.key.Dst(), req.GetRequestURI())
@@ -264,7 +263,7 @@ func (h *HttpTrafficHandlerPair) printCurlRequest(req Req, uuid []byte, seq int3
 
 // printNormalRequest prints http request.
 func (h *HttpTrafficHandlerPair) printNormalRequest(r Req, uuid []byte, seq int32) {
-	//TODO: expect-100 continue handle
+	// TODO: expect-100 continue handle
 	o := h.option
 	if o.Level == LevelUrl {
 		h.writeLine(r.GetMethod(), r.GetHost()+r.GetRequestURI())

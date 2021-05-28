@@ -4,11 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
-	"io"
+	"io/ioutil"
+	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/ss"
 )
 
 // HTTPClient holds configurations for a single HTTP client
@@ -18,6 +22,7 @@ type HTTPClient struct {
 }
 
 type HTTPClientConfig struct {
+	Verbose        string // (empty)/req/rsp/all
 	Timeout        time.Duration
 	InsecureVerify bool
 	BaseURL        *url.URL
@@ -63,7 +68,6 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 	if req.Method == http.MethodConnect {
 		return nil, nil
 	}
-
 	if c.Methods != "" && !strings.Contains(c.Methods, req.Method) {
 		return nil, nil
 	}
@@ -81,20 +85,60 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 	req.Close = false
 	// it's an error if this is not equal to empty string
 	req.RequestURI = ""
+
+	logRequestDump(req, c.Verbose)
+
 	start := time.Now()
-	resp, err := c.Client.Do(req)
-	result := &SendResponse{
+	rsp, err := c.Client.Do(req)
+	sendRsp := &SendResponse{
 		Method: req.Method,
 		URL:    req.URL.String(),
 		Cost:   time.Since(start),
 	}
-	if resp != nil {
-		var b bytes.Buffer
-		io.Copy(&b, resp.Body)
-		resp.Body.Close()
-		result.ResponseBody = b.Bytes()
-		result.StatusCode = resp.StatusCode
+
+	logResponseDump(rsp, c.Verbose)
+
+	if rsp != nil {
+		sendRsp.ResponseBody, _ = ReadCloseBody(rsp)
+		sendRsp.StatusCode = rsp.StatusCode
 	}
 
-	return result, err
+	return sendRsp, err
+}
+
+func ReadCloseBody(r *http.Response) ([]byte, error) {
+	if r == nil {
+		return nil, nil
+	}
+	if r.Body == nil {
+		return nil, nil
+	}
+	defer r.Body.Close()
+
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func logResponseDump(r *http.Response, verbose string) {
+	if r != nil && ss.ContainsAny(verbose, "rsp", "all") {
+		if dump, err := httputil.DumpResponse(r, true); err != nil {
+			log.Printf("failed to dump response: %v", err)
+		} else {
+			log.Printf("dumped response: %s", dump)
+		}
+	}
+}
+
+func logRequestDump(r *http.Request, verbose string) {
+	if r != nil && ss.ContainsAny(verbose, "req", "all") {
+		if dump, err := httputil.DumpRequest(r, true); err != nil {
+			log.Printf("failed to dump request: %v", err)
+		} else {
+			log.Printf("dumped request: %s", dump)
+		}
+	}
 }

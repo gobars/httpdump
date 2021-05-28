@@ -1,12 +1,9 @@
-package main
+package handler
 
 import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/bingoohuang/gg/pkg/ss"
-	"github.com/bingoohuang/httpdump/httpport"
-	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -16,6 +13,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/ss"
+	"github.com/bingoohuang/httpdump/httpport"
+	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
 // ConnectionHandler is interface for handle tcp connection
@@ -34,8 +35,6 @@ type ConnectionKey struct {
 	src, dst Endpoint
 }
 
-func (ck *ConnectionKey) reverse() ConnectionKey { return ConnectionKey{ck.dst, ck.src} }
-
 // Src return the src ip and port
 func (ck *ConnectionKey) Src() string { return ck.src.String() }
 
@@ -45,6 +44,22 @@ func (ck *ConnectionKey) Dst() string { return ck.dst.String() }
 type Sender interface {
 	Send(msg string, countDiscards bool)
 	Close() error
+}
+
+type Senders []Sender
+
+func (ss Senders) Send(msg string, countDiscards bool) {
+	for _, s := range ss {
+		s.Send(msg, countDiscards)
+	}
+}
+
+func (ss Senders) Close() error {
+	for _, s := range ss {
+		s.Close()
+	}
+
+	return nil
 }
 
 type HandlerBase struct {
@@ -89,8 +104,10 @@ type Rsp interface {
 	GetStatusCode() int
 }
 
-var reqCounter = Counter{}
-var rspCounter = Counter{}
+var (
+	reqCounter = Counter{}
+	rspCounter = Counter{}
+)
 
 // read http request/response stream, and do output
 func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
@@ -277,9 +294,9 @@ func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 
 	// check mime type and charset
 	contentType := header.Get("Content-Type")
-	if contentType == "" {
-		// TODO: detect content type using httpport.DetectContentType()
-	}
+	// if contentType == "" {
+	// TODO: detect content type using httpport.DetectContentType()
+	//}
 	mimeTypeStr, charset := parseContentType(contentType)
 	mt := parseMimeType(mimeTypeStr)
 	isText := mt.isTextContent()

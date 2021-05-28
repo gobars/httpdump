@@ -477,7 +477,7 @@ func (r *Reader) ReadMIMEHeader() (textproto.MIMEHeader, []string, error) {
 		strs = make([]string, hint)
 	}
 
-	var rawHeaders = []string{}
+	rawHeaders := []string{}
 
 	m := make(textproto.MIMEHeader, hint)
 	for {

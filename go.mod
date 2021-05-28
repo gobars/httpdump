@@ -3,7 +3,7 @@ module github.com/bingoohuang/httpdump
 go 1.16
 
 require (
-	github.com/bingoohuang/gg v0.0.0-20210527083005-d26f087a7232
+	github.com/bingoohuang/gg v0.0.0-20210528044049-6057090a82ac
 	github.com/bmatcuk/doublestar/v3 v3.0.0
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gobwas/glob v0.2.3

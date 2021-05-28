@@ -68,7 +68,7 @@ func (w *RotateFileWriter) openFile(fn string, index int) (ok bool, err error) {
 		_ = os.Rename(w.currentFn, SetFileIndex(w.currentFn, 1))
 	}
 
-	w.file, err = os.OpenFile(fn, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0660)
+	w.file, err = os.OpenFile(fn, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o660)
 	if err != nil {
 		return false, err
 	}
@@ -97,6 +97,7 @@ func (w *RotateFileWriter) Flush() error {
 
 	return nil
 }
+
 func (w *RotateFileWriter) Close() error {
 	if w.writer != nil && w.file != nil {
 		_ = w.writer.Flush()
