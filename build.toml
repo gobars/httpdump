@@ -21,4 +21,6 @@ cmds = [
     "go16 install -ldflags=\"-s -w\" ./...",
     "upx --best --lzma  `which @App`",
     "@App -v",
+    "%dl golang/bin/@App ~/Documents",
+    "%local ls -lh ~/Documents/httpdump",
 ]

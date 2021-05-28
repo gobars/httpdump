@@ -68,7 +68,7 @@ type Option struct {
 	File string `flag:"f" usage:"File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll"`
 }
 
-func (Option) VersionInfo() string { return "httpdump v1.2.0 2021-05-27 16:50:27" }
+func (Option) VersionInfo() string { return "httpdump v1.2.1 2021-05-28 09:29:08" }
 
 func main() {
 	option := &Option{}

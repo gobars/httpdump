@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -45,10 +46,11 @@ func NewHTTPClient(c *HTTPClientConfig) *HTTPClient {
 }
 
 type SendResponse struct {
-	Method string
-	URL    string
-	*http.Response
-	Cost time.Duration
+	Method       string
+	URL          string
+	ResponseBody []byte
+	StatusCode   int
+	Cost         time.Duration
 }
 
 // Send sends an http request using client create by NewHTTPClient
@@ -81,10 +83,18 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 	req.RequestURI = ""
 	start := time.Now()
 	resp, err := c.Client.Do(req)
-	return &SendResponse{
-		Method:   req.Method,
-		URL:      req.URL.String(),
-		Response: resp,
-		Cost:     time.Since(start),
-	}, err
+	result := &SendResponse{
+		Method: req.Method,
+		URL:    req.URL.String(),
+		Cost:   time.Since(start),
+	}
+	if resp != nil {
+		var b bytes.Buffer
+		io.Copy(&b, resp.Body)
+		resp.Body.Close()
+		result.ResponseBody = b.Bytes()
+		result.StatusCode = resp.StatusCode
+	}
+
+	return result, err
 }
