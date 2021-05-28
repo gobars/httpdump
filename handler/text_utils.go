@@ -1,13 +1,10 @@
 package handler
 
 import (
-	"bytes"
 	"io"
 	"io/ioutil"
 	"strings"
 
-	//"github.com/saintfish/chardet" // not work, realy stupid...
-	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/htmlindex"
 	"golang.org/x/text/transform"
 )
@@ -137,37 +134,20 @@ func (ct mimeType) isBinaryContent() bool {
 }
 
 // read reader content to string, using charset specified
-func readToStringWithCharset(reader io.Reader, charset string) (string, error) {
+func readWithCharset(reader io.Reader, charset string) ([]byte, error) {
 	charset = strings.ToUpper(charset)
-	var data []byte
-	var err error
 	if charset == "UTF-8" || charset == "UTF8" {
-		data, err = ioutil.ReadAll(reader)
-	} else {
-		if charset == "GBK" || charset == "GB2312" {
-			charset = "GB18030"
-		}
-		var encoder encoding.Encoding
-		encoder, err = htmlindex.Get(charset)
-		if err != nil {
-			return "", err
-		}
-		data, err = ioutil.ReadAll(transform.NewReader(reader, encoder.NewDecoder()))
+		return ioutil.ReadAll(reader)
 	}
-	if err != nil {
-		return "", err
-	}
-	return string(data), err
-}
 
-// convert byte array to string, using charset specified
-func byteToStringWithCharset(data []byte, charset string) (string, error) {
-	charset = strings.ToUpper(charset)
-	if charset == "UTF-8" || charset == "UTF8" {
-		return string(data), nil
+	if charset == "GBK" || charset == "GB2312" {
+		charset = "GB18030"
 	}
-	reader := bytes.NewBuffer(data)
-	return readToStringWithCharset(reader, charset)
+	encoder, err := htmlindex.Get(charset)
+	if err != nil {
+		return nil, err
+	}
+	return ioutil.ReadAll(transform.NewReader(reader, encoder.NewDecoder()))
 }
 
 // parse content type to mimeType and charset

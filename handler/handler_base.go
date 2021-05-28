@@ -71,6 +71,7 @@ type HandlerBase struct {
 
 func (h *HandlerBase) writeFormat(f string, a ...interface{}) { fmt.Fprintf(h.buffer, f, a...) }
 func (h *HandlerBase) write(a ...interface{})                 { fmt.Fprint(h.buffer, a...) }
+func (h *HandlerBase) writeBytes(p []byte)                    { h.buffer.Write(p) }
 func (h *HandlerBase) writeLine(a ...interface{}) {
 	fmt.Fprint(h.buffer, a...)
 	fmt.Fprintf(h.buffer, "\r\n")
@@ -219,7 +220,6 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 	}
 
 	if hasBody {
-		h.writeFormat("\r\n")
 		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
@@ -309,23 +309,26 @@ func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 		return
 	}
 
-	var body string
+	var body []byte
 	var err error
 	if charset == "" {
 		// response do not set charset, try to detect
 		if data, err := io.ReadAll(nr); err == nil {
-			// TODO: try to detect charset
-			body = string(data)
+			body = data
 		}
 	} else {
-		body, err = readToStringWithCharset(nr, charset)
+		body, err = readWithCharset(nr, charset)
 	}
 	if err != nil {
 		h.writeLine("{Read body failed", err, "}")
 		return
 	}
 
-	h.write(body)
+	if l := len(body); l > 0 {
+		h.writeFormat("Content-Length: %d\r\n", l)
+		h.writeBytes([]byte("\r\n"))
+		h.writeBytes(body)
+	}
 }
 
 func (h *HandlerBase) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
