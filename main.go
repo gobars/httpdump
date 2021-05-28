@@ -122,12 +122,12 @@ func IsURL(out string) (string, bool) {
 		return "", false
 	}
 
-	if _, appendMode, maxSize := util.ParseOutputPath(out); appendMode || maxSize > 0 {
-		return "", false
-	}
-
 	if ss.HasPrefix(out, "http://", "https://") {
 		return out, true
+	}
+
+	if _, appendMode, maxSize := util.ParseOutputPath(out); appendMode || maxSize > 0 {
+		return "", false
 	}
 
 	uri, err := rest.FixURI(out)

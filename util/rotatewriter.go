@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -45,13 +46,17 @@ func NewRotateWriter(ctx context.Context, outputPath string, outChanSize uint, a
 	return p
 }
 
+var digits = regexp.MustCompile(`\d+`)
+
 func ParseOutputPath(outputPath string) (string, bool, uint64) {
 	s := strings.ReplaceAll(outputPath, ":append", "")
 	appendMode := s != outputPath
 	maxSize := uint64(0)
 	if pos := strings.LastIndex(s, ":"); pos > 0 {
-		maxSize, _ = man.ParseBytes(s[pos+1:])
-		s = s[:pos]
+		if !digits.MatchString(s[pos+1:]) {
+			maxSize, _ = man.ParseBytes(s[pos+1:])
+			s = s[:pos]
+		}
 	}
 	return s, appendMode, maxSize
 }
