@@ -4,15 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"github.com/bingoohuang/httpdump/util"
 	"io/ioutil"
-	"log"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/bingoohuang/gg/pkg/ss"
 )
 
 // HTTPClient holds configurations for a single HTTP client
@@ -86,7 +83,7 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 	// it's an error if this is not equal to empty string
 	req.RequestURI = ""
 
-	logRequestDump(req, c.Verbose)
+	util.LogRequest(req, c.Verbose)
 
 	start := time.Now()
 	rsp, err := c.Client.Do(req)
@@ -96,7 +93,7 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 		Cost:   time.Since(start),
 	}
 
-	logResponseDump(rsp, c.Verbose)
+	util.LogResponse(rsp, c.Verbose)
 
 	if rsp != nil {
 		sendRsp.ResponseBody, _ = ReadCloseBody(rsp)
@@ -121,24 +118,4 @@ func ReadCloseBody(r *http.Response) ([]byte, error) {
 	}
 
 	return data, nil
-}
-
-func logResponseDump(r *http.Response, verbose string) {
-	if r != nil && ss.ContainsAny(verbose, "rsp", "all") {
-		if dump, err := httputil.DumpResponse(r, true); err != nil {
-			log.Printf("failed to dump response: %v", err)
-		} else {
-			log.Printf("dumped response: %s", dump)
-		}
-	}
-}
-
-func logRequestDump(r *http.Request, verbose string) {
-	if r != nil && ss.ContainsAny(verbose, "req", "all") {
-		if dump, err := httputil.DumpRequest(r, true); err != nil {
-			log.Printf("failed to dump request: %v", err)
-		} else {
-			log.Printf("dumped request: %s", dump)
-		}
-	}
 }
