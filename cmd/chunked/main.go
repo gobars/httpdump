@@ -2,14 +2,23 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 func main() {
+	for i := 0; i < 10000; i++ {
+		time.Sleep(5 * time.Millisecond)
+		demoChunkedTransferEncodingInHttpClient()
+	}
+}
+
+func demoChunkedTransferEncodingInHttpClient() {
 	r := &http.Request{
 		Method: "POST",
 		URL: &url.URL{
@@ -17,12 +26,8 @@ func main() {
 			Host:   "localhost:5003",
 			Path:   "/solr/licenseIndex/update?wt=javabin&version=2",
 		},
-		ProtoMajor: 1,
-		ProtoMinor: 1,
 		Header: http.Header{
-			//"Content-Type": {"plain/text; charset=UTF-8"},
 			"Content-Type": {"application/xml; charset=UTF-8"},
-			//"Content-Type": {"application/json"},
 		},
 		ContentLength: -1,
 		Body:          ioutil.NopCloser(strings.NewReader(`<text>Hello world!</text>`)),
@@ -34,6 +39,7 @@ func main() {
 		fmt.Println(err)
 	} else {
 		rr.Write(os.Stdout)
+		io.Copy(io.Discard, rr.Body)
 	}
 
 	//r.Write(os.Stdout)

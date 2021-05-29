@@ -74,10 +74,10 @@ func CreatePacketsChan(input, bpf, host, ip string, port uint) (chan gopacket.Pa
 		for _, itf := range interfaces {
 			localPackets, err := OpenSingleDevice(itf.Name, bpf, ip, uint16(port))
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "open device", itf, "error:", err)
+				fmt.Fprintln(os.Stderr, "Open device", itf, "error:", err)
 				continue
 			}
-			log.Printf("open deive %s", itf.Name)
+			log.Printf("Open deive %s", itf.Name)
 			packetsSlice = append(packetsSlice, localPackets)
 		}
 		if len(packetsSlice) == 0 {

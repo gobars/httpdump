@@ -112,8 +112,9 @@ func (c *Config) processFile(file string, options *Options) error {
 func (c *Config) createParseOptions() *Options {
 	payloadHandler := func(Msg) error { return nil }
 	if v := c.CreateHTTPClientConfig(); v != nil {
+		client := v.NewHTTPClient()
 		payloadHandler = func(payload Msg) error {
-			return replay(NewHTTPClient(v), payload)
+			return replay(client, payload)
 		}
 	}
 
@@ -132,9 +133,9 @@ const layout = `2006-01-02 15:04:05.000000`
 func replay(client *HTTPClient, payload Msg) error {
 	logTitle(payload.Title, "", "")
 	if r, err := client.Send(payload.Data); err != nil {
-		log.Printf("E! failed to replay, error %v", err)
+		log.Printf("E! Failed to replay, error %v", err)
 	} else if r != nil {
-		log.Printf("replay %s %s, cost %s, status: %d", r.Method, r.URL, r.Cost, r.StatusCode)
+		log.Printf("Replay %s %s, cost %s, status: %d", r.Method, r.URL, r.Cost, r.StatusCode)
 	}
 	return nil
 }

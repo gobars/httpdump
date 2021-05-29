@@ -25,7 +25,7 @@ type Options struct {
 }
 
 func PayloadPrinter(payload Msg) error {
-	log.Printf("payload found title:%s <<<\n%s\n>>>", payload.Title, payload.Data)
+	log.Printf("Payload title:%s <<<\n%s\n>>>", payload.Title, payload.Data)
 	return nil
 }
 

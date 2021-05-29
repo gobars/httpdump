@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"github.com/bingoohuang/httpdump/util"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,7 +13,7 @@ import (
 
 // HTTPClient holds configurations for a single HTTP client
 type HTTPClient struct {
-	Client *http.Client
+	*http.Client
 	*HTTPClientConfig
 }
 
@@ -27,7 +26,7 @@ type HTTPClientConfig struct {
 }
 
 // NewHTTPClient returns new http client with check redirects policy
-func NewHTTPClient(c *HTTPClientConfig) *HTTPClient {
+func (c *HTTPClientConfig) NewHTTPClient() *HTTPClient {
 	if c.Timeout == 0 {
 		c.Timeout = 15 * time.Second
 	}
@@ -38,7 +37,7 @@ func NewHTTPClient(c *HTTPClientConfig) *HTTPClient {
 		},
 	}
 	if !c.InsecureVerify {
-		// clone to avoid modying global default RoundTripper
+		// clone to avoid modifying global default RoundTripper
 		t := http.DefaultTransport.(*http.Transport).Clone()
 		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		client.Client.Transport = t
@@ -96,26 +95,9 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 	util.LogResponse(rsp, c.Verbose)
 
 	if rsp != nil {
-		sendRsp.ResponseBody, _ = ReadCloseBody(rsp)
+		sendRsp.ResponseBody, _ = util.ReadCloseBody(rsp)
 		sendRsp.StatusCode = rsp.StatusCode
 	}
 
 	return sendRsp, err
-}
-
-func ReadCloseBody(r *http.Response) ([]byte, error) {
-	if r == nil {
-		return nil, nil
-	}
-	if r.Body == nil {
-		return nil, nil
-	}
-	defer r.Body.Close()
-
-	data, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
 }

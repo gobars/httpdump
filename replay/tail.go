@@ -29,7 +29,7 @@ func (t *Tail) TailPayloads(ctx context.Context) error {
 	defer ticker.Stop()
 
 	if err := t.tailNewFiles(ctx, tailers, offsets); err != nil {
-		log.Printf("E! tail new files: %v", err)
+		log.Printf("E! Tail new files: %v", err)
 	}
 
 	defer t.wg.Wait()
@@ -40,7 +40,7 @@ func (t *Tail) TailPayloads(ctx context.Context) error {
 			return ctx.Err()
 		case <-ticker.C:
 			if err := t.tailNewFiles(ctx, tailers, offsets); err != nil {
-				log.Printf("E! tail new files: %v", err)
+				log.Printf("E! Tail new files: %v", err)
 			}
 		}
 	}
@@ -118,7 +118,7 @@ func (t *Tail) receiver(ctx context.Context, tailer *tail.Tail) {
 	})
 
 	if err := g.Wait(); err != nil {
-		log.Printf("E! failed to wait: %v", err)
+		log.Printf("E! Failed to wait: %v", err)
 	}
 }
 

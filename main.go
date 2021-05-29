@@ -66,7 +66,7 @@ type Option struct {
 	handlerOption *handler.Option
 }
 
-func (Option) VersionInfo() string { return "httpdump v1.2.3 2021-05-28 13:14:31" }
+func (Option) VersionInfo() string { return "httpdump v1.2.4 2021-05-29 07:48:43" }
 
 func main() {
 	option := &Option{}

@@ -3,7 +3,6 @@ package util
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -104,8 +103,6 @@ func (w *RotateFileWriter) Close() error {
 		_ = w.file.Close()
 		w.writer = nil
 		w.file = nil
-
-		log.Printf("close file %s", w.currentFn)
 	}
 	return nil
 }
