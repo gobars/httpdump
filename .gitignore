@@ -4,3 +4,5 @@ httpdump
 vendor/
 .vscode/
 /httplive.db
+.DS_Store
+bbb*.http
