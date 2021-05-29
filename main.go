@@ -126,6 +126,10 @@ func IsURL(out string) (string, bool) {
 		return out, true
 	}
 
+	if fn := util.ParseFileNameTemplate(out); fn != out {
+		return "", false
+	}
+
 	if _, appendMode, maxSize := util.ParseOutputPath(out); appendMode || maxSize > 0 {
 		return "", false
 	}
