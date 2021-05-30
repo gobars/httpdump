@@ -128,6 +128,12 @@ func setDeviceFilter(handle *pcap.Handle, bpf, filterIP string, filterPort uint1
 		return handle.SetBPFFilter(bpf)
 	}
 
+	if filterIP != "" && filterPort > 0 {
+		bpf = fmt.Sprintf("tcp and (dst host %s and dst port %d or src host %s and src port %d)",
+			filterIP, filterPort, filterIP, filterPort)
+		return handle.SetBPFFilter(bpf)
+	}
+
 	bpfFilter := "tcp"
 	if filterPort != 0 {
 		bpfFilter += " port " + strconv.Itoa(int(filterPort))

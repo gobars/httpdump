@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"github.com/bingoohuang/gg/pkg/flagparse"
+	"github.com/bingoohuang/jj"
 	"log"
 	"strconv"
 	"strings"
@@ -16,13 +19,23 @@ import (
 	"github.com/google/gopacket/tcpassembly"
 
 	"github.com/bingoohuang/gg/pkg/ctx"
-	"github.com/bingoohuang/gg/pkg/flagparse"
 )
+
+func (Option) VersionInfo() string { return "httpdump v1.2.4 2021-05-29 07:48:43" }
+
+func main() {
+	option := &Option{}
+	flagparse.Parse(option)
+
+	option.Print()
+
+	option.handlerOption = option.createHandleOption()
+	option.run()
+}
 
 // Option Command line options.
 type Option struct {
-	Level string `val:"all" usage:"Output level, l1: first line, url: only url, header: http headers, all: headers and text http body"`
-
+	Level string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
 	Input string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 
 	Ip   string `usage:"Filter by ip, if either src or dst ip is matched, the packet will be processed"`
@@ -64,16 +77,6 @@ type Option struct {
 	File string `flag:"f" usage:"File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll"`
 
 	handlerOption *handler.Option
-}
-
-func (Option) VersionInfo() string { return "httpdump v1.2.4 2021-05-29 07:48:43" }
-
-func main() {
-	option := &Option{}
-	flagparse.Parse(option)
-
-	option.handlerOption = option.createHandleOption()
-	option.run()
 }
 
 func (o *Option) run() {
@@ -215,4 +218,10 @@ func (o *Option) createHandleOption() *handler.Option {
 		Force:    o.Force,
 		Curl:     o.Curl,
 	}
+}
+
+func (o Option) Print() {
+	json := ss.Jsonify(o)
+	json, _ = jj.Set(json, "idle", o.Idle.String())
+	fmt.Println("Options:", json)
 }

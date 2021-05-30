@@ -7,7 +7,6 @@ import (
 )
 
 const (
-	LevelL1     = "l1"
 	LevelUrl    = "url"
 	LevelHeader = "header"
 )

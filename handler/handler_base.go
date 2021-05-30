@@ -191,7 +191,7 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 		seq, uuid, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
 
 	o := h.option
-	if ss.AnyOf(o.Level, LevelL1, LevelUrl) {
+	if ss.AnyOf(o.Level, LevelUrl) {
 		h.writeFormat("%s %s\r\n", r.GetMethod(), r.GetHost()+r.GetPath())
 		return
 	}
@@ -227,17 +227,12 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 // print http response
 func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, uuid []byte, seq int32) {
 	defer discardAll(r.GetBody())
-
-	o := h.option
-	if !o.Resp || o.Level == LevelUrl {
-		return
-	}
-
 	h.writeLine(fmt.Sprintf("\n### RESPONSE #%d %s %s<-%s %s",
 		seq, uuid, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano)))
 
 	h.writeLine(r.GetStatusLine())
-	if o.Level == LevelL1 {
+	o := h.option
+	if !o.Resp || o.Level == LevelUrl {
 		return
 	}
 

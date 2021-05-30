@@ -78,14 +78,6 @@ func (r *TCPAssembler) createConnectionKey(src Endpoint, dst Endpoint) string {
 }
 
 func (r *TCPAssembler) shouldDrop(src, dst Endpoint) (dropped bool) {
-	if r.filterIP != "" && r.filterPort > 0 {
-		if src.ip == r.filterIP && src.port == r.filterPort ||
-			dst.ip == r.filterIP && dst.port == r.filterPort {
-			return false
-		}
-		return true
-	}
-
 	if r.filterIP != "" && src.ip != r.filterIP && dst.ip != r.filterIP {
 		return true
 	}
