@@ -21,20 +21,20 @@ import (
 	"github.com/bingoohuang/gg/pkg/ctx"
 )
 
-func (Option) VersionInfo() string { return "httpdump v1.2.4 2021-05-29 07:48:43" }
+func (App) VersionInfo() string { return "httpdump v1.2.4 2021-05-29 07:48:43" }
 
 func main() {
-	option := &Option{}
-	flagparse.Parse(option)
+	app := &App{}
+	flagparse.Parse(app)
 
-	option.Print()
+	app.Print()
 
-	option.handlerOption = option.createHandleOption()
-	option.run()
+	app.handlerOption = app.createHandleOption()
+	app.run()
 }
 
-// Option Command line options.
-type Option struct {
+// App Command line options.
+type App struct {
 	Level string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
 	Input string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 
@@ -79,7 +79,7 @@ type Option struct {
 	handlerOption *handler.Option
 }
 
-func (o *Option) run() {
+func (o *App) run() {
 	c, _ := ctx.RegisterSignals(nil)
 	rc := replay.Config{Method: o.Method, File: o.File, Verbose: o.Verbose}
 
@@ -157,7 +157,7 @@ func (ss *ReplaySender) Send(msg string, countDiscards bool) {
 	ss.ch <- msg
 }
 
-func (o *Option) createAssembler(c context.Context, sender handler.Sender) util.Assembler {
+func (o *App) createAssembler(c context.Context, sender handler.Sender) util.Assembler {
 	switch o.Mode {
 	case "fast", "pair":
 		h := o.createConnectionHandler(sender)
@@ -167,14 +167,14 @@ func (o *Option) createAssembler(c context.Context, sender handler.Sender) util.
 	}
 }
 
-func (o *Option) createTcpStdAssembler(c context.Context, printer handler.Sender) *handler.TcpStdAssembler {
+func (o *App) createTcpStdAssembler(c context.Context, printer handler.Sender) *handler.TcpStdAssembler {
 	f := handler.NewFactory(c, o.handlerOption, printer)
 	p := tcpassembly.NewStreamPool(f)
 	assembler := tcpassembly.NewAssembler(p)
 	return &handler.TcpStdAssembler{Assembler: assembler}
 }
 
-func (o *Option) createConnectionHandler(sender handler.Sender) handler.ConnectionHandler {
+func (o *App) createConnectionHandler(sender handler.Sender) handler.ConnectionHandler {
 	if o.Mode == "fast" {
 		return &handler.ConnectionHandlerFast{Option: o.handlerOption, Sender: sender}
 	} else {
@@ -182,11 +182,11 @@ func (o *Option) createConnectionHandler(sender handler.Sender) handler.Connecti
 	}
 }
 
-func (o *Option) PostProcess() {
+func (o *App) PostProcess() {
 	o.processDumpBody()
 }
 
-func (o *Option) processDumpBody() {
+func (o *App) processDumpBody() {
 	if o.DumpBody == "" {
 		return
 	}
@@ -205,7 +205,7 @@ func (o *Option) processDumpBody() {
 	}
 }
 
-func (o *Option) createHandleOption() *handler.Option {
+func (o *App) createHandleOption() *handler.Option {
 	return &handler.Option{
 		Resp:     o.Resp,
 		Host:     o.Host,
@@ -220,8 +220,8 @@ func (o *Option) createHandleOption() *handler.Option {
 	}
 }
 
-func (o Option) Print() {
-	json := ss.Jsonify(o)
-	json, _ = jj.Set(json, "idle", o.Idle.String())
-	fmt.Println("Options:", json)
+func (o App) Print() {
+	s := ss.Jsonify(o)
+	s, _ = jj.Set(s, "idle", o.Idle.String())
+	fmt.Println("Options:", s)
 }
