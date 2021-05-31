@@ -193,6 +193,6 @@ func (o *App) createHandleOption() *handler.Option {
 
 func (o App) Print() {
 	s := ss.Jsonify(o)
-	s, _ = jj.Set(s, "idle", o.Idle.String())
+	s, _ = jj.Set(s, "Idle", o.Idle.String())
 	fmt.Println("Options:", s)
 }

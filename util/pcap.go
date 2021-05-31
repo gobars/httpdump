@@ -124,14 +124,18 @@ func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
 
 // set packet capture filter, by ip and port
 func setDeviceFilter(handle *pcap.Handle, bpf, filterIP string, filterPort uint16) error {
+	setter := func(expr string) (err error) {
+		log.Printf("BPF: %s", expr)
+		return handle.SetBPFFilter(expr)
+	}
 	if bpf != "" {
-		return handle.SetBPFFilter(bpf)
+		return setter(bpf)
 	}
 
 	if filterIP != "" && filterPort > 0 {
-		bpf = fmt.Sprintf("tcp and (dst host %s and dst port %d or src host %s and src port %d)",
+		bpf = fmt.Sprintf("tcp and ((dst host %s and dst port %d) or (src host %s and src port %d))",
 			filterIP, filterPort, filterIP, filterPort)
-		return handle.SetBPFFilter(bpf)
+		return setter(bpf)
 	}
 
 	bpfFilter := "tcp"
@@ -141,7 +145,7 @@ func setDeviceFilter(handle *pcap.Handle, bpf, filterIP string, filterPort uint1
 	if filterIP != "" {
 		bpfFilter += " ip host " + filterIP
 	}
-	return handle.SetBPFFilter(bpfFilter)
+	return setter(bpfFilter)
 }
 
 func ListInterfaces(host string) (ifacesHasAddr []net.Interface, err error) {
