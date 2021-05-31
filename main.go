@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/bingoohuang/gg/pkg/flagparse"
 	"github.com/bingoohuang/jj"
-	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -81,29 +80,18 @@ type App struct {
 
 func (o *App) run() {
 	c, _ := ctx.RegisterSignals(nil)
-	rc := replay.Config{Method: o.Method, File: o.File, Verbose: o.Verbose}
-
-	var wg sync.WaitGroup
+	wg := &sync.WaitGroup{}
 
 	if len(o.Output) == 0 {
 		o.Output = []string{"stdout"}
 	}
+
 	senders := make(handler.Senders, 0, len(o.Output))
 	for _, out := range o.Output {
-		if addr, ok := IsURL(out); ok {
-			rc.Replay = addr
-			ch := make(chan string, o.OutChan)
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if err := rc.StartReplay(c, ch); err != nil {
-					log.Printf("E! err: %v", err)
-				}
-			}()
-			senders = append(senders, &ReplaySender{ch: ch})
+		if addr, ok := isURL(out); ok {
+			senders = append(senders, replay.CreateSender(c, wg, o.Method, o.File, o.Verbose, addr, o.OutChan))
 		} else {
-			w := util.NewRotateWriter(c, out, o.OutChan, true)
-			senders = append(senders, w)
+			senders = append(senders, util.NewRotateWriter(c, out, o.OutChan, true))
 		}
 	}
 
@@ -112,15 +100,14 @@ func (o *App) run() {
 		if err != nil {
 			panic(err)
 		}
-		assembler := o.createAssembler(c, senders)
-		util.LoopPackets(c, packets, assembler, o.Idle)
+		util.LoopPackets(c, packets, o.createAssembler(c, senders), o.Idle)
 	}
 
 	senders.Close()
 	wg.Wait()
 }
 
-func IsURL(out string) (string, bool) {
+func isURL(out string) (string, bool) {
 	if out == "stdout" {
 		return "", false
 	}
@@ -139,22 +126,6 @@ func IsURL(out string) (string, bool) {
 
 	uri, err := rest.FixURI(out)
 	return uri, err == nil
-}
-
-type ReplaySender struct {
-	ch chan string
-}
-
-func (ss *ReplaySender) Close() error {
-	close(ss.ch)
-	return nil
-}
-
-func (ss *ReplaySender) Send(msg string, countDiscards bool) {
-	if !countDiscards {
-		return
-	}
-	ss.ch <- msg
 }
 
 func (o *App) createAssembler(c context.Context, sender handler.Sender) util.Assembler {
