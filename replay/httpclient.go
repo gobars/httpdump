@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
-	"github.com/bingoohuang/httpdump/util"
+	"github.com/bingoohuang/gg/pkg/rest"
 	"net/http"
 	"net/url"
 	"strings"
@@ -82,7 +82,7 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 	// it's an error if this is not equal to empty string
 	req.RequestURI = ""
 
-	util.LogRequest(req, c.Verbose)
+	rest.LogRequest(req, c.Verbose)
 
 	start := time.Now()
 	rsp, err := c.Client.Do(req)
@@ -92,10 +92,10 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 		Cost:   time.Since(start),
 	}
 
-	util.LogResponse(rsp, c.Verbose)
+	rest.LogResponse(rsp, c.Verbose)
 
 	if rsp != nil {
-		sendRsp.ResponseBody, _ = util.ReadCloseBody(rsp)
+		sendRsp.ResponseBody, _ = rest.ReadCloseBody(rsp)
 		sendRsp.StatusCode = rsp.StatusCode
 	}
 
