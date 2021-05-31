@@ -135,7 +135,7 @@ func replay(client *HTTPClient, payload Msg) error {
 	if r, err := client.Send(payload.Data); err != nil {
 		log.Printf("E! Failed to replay, error %v", err)
 	} else if r != nil {
-		log.Printf("Replay %s %s, cost %s, status: %d", r.Method, r.URL, r.Cost, r.StatusCode)
+		log.Printf("Replay: %s %s cost: %s status: %d", r.Method, r.URL, r.Cost, r.StatusCode)
 	}
 	return nil
 }
@@ -154,19 +154,19 @@ func logTitle(title []byte, method, uri string) {
 		if nano, err := strconv.ParseInt(found, 10, 64); err == nil {
 			tim := time.Unix(0, nano).Format(layout)
 			if method == "" {
-				log.Printf("Timestamp: %s Title:%s", tim, s)
+				log.Printf("Timestamp: %s %s", tim, s)
 				return
 			}
 
 			if u, _ := url.Parse(uri); u != nil {
 				uri = u.Path
 			}
-			log.Printf("Timestamp: %s Title: %s Method: %s, URI: %s", tim, s, method, uri)
+			log.Printf("Timestamp: %s Method: %s  URI: %   %s ", tim, method, uri, s)
 			return
 		}
 	}
 
-	log.Printf("Title: %s", s)
+	log.Print(s)
 }
 
 func (c *Config) CreateHTTPClientConfig() *HTTPClientConfig {

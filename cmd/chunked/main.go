@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 1; i++ {
 		time.Sleep(5 * time.Millisecond)
 		demoChunkedTransferEncodingInHttpClient()
 	}
@@ -23,7 +23,7 @@ func demoChunkedTransferEncodingInHttpClient() {
 		Method: "POST",
 		URL: &url.URL{
 			Scheme: "http",
-			Host:   "localhost:5003",
+			Host:   "192.168.126.182:5003",
 			Path:   "/solr/licenseIndex/update?wt=javabin&version=2",
 		},
 		Header: http.Header{
