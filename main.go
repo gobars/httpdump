@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/bingoohuang/gg/pkg/flagparse"
+	"github.com/bingoohuang/gg/pkg/rest"
 	"github.com/bingoohuang/gg/pkg/rotate"
-	"github.com/bingoohuang/gg/pkg/timex"
 	"github.com/bingoohuang/jj"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/bingoohuang/gg/pkg/rest"
 	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/httpdump/handler"
 	"github.com/bingoohuang/httpdump/replay"
@@ -90,7 +89,7 @@ func (o *App) run() {
 
 	senders := make(handler.Senders, 0, len(o.Output))
 	for _, out := range o.Output {
-		if addr, ok := isURL(out); ok {
+		if addr, ok := rest.MaybeURL(out); ok {
 			senders = append(senders, replay.CreateSender(c, wg, o.Method, o.File, o.Verbose, addr, o.OutChan))
 		} else {
 			senders = append(senders, rotate.NewQueueWriter(c, out, o.OutChan, true))
@@ -107,27 +106,6 @@ func (o *App) run() {
 
 	senders.Close()
 	wg.Wait()
-}
-
-func isURL(out string) (string, bool) {
-	if out == "stdout" {
-		return "", false
-	}
-
-	if ss.HasPrefix(out, "http://", "https://") {
-		return out, true
-	}
-
-	if fn := timex.ConvertLayout(out); fn != out {
-		return "", false
-	}
-
-	if _, appendMode, maxSize := rotate.ParseOutputPath(out); appendMode || maxSize > 0 {
-		return "", false
-	}
-
-	uri, err := rest.FixURI(out)
-	return uri, err == nil
 }
 
 func (o *App) createAssembler(c context.Context, sender handler.Sender) util.Assembler {
