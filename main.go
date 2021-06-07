@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/bingoohuang/gg/pkg/flagparse"
+	"github.com/bingoohuang/gg/pkg/rotate"
+	"github.com/bingoohuang/gg/pkg/timex"
 	"github.com/bingoohuang/jj"
 	"strconv"
 	"strings"
@@ -20,7 +22,7 @@ import (
 	"github.com/bingoohuang/gg/pkg/ctx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.2.4 2021-05-29 07:48:43" }
+func (App) VersionInfo() string { return "httpdump v1.2.5 2021-06-07 16:02:17" }
 
 func main() {
 	app := &App{}
@@ -91,7 +93,7 @@ func (o *App) run() {
 		if addr, ok := isURL(out); ok {
 			senders = append(senders, replay.CreateSender(c, wg, o.Method, o.File, o.Verbose, addr, o.OutChan))
 		} else {
-			senders = append(senders, util.NewRotateWriter(c, out, o.OutChan, true))
+			senders = append(senders, rotate.NewQueueWriter(c, out, o.OutChan, true))
 		}
 	}
 
@@ -116,11 +118,11 @@ func isURL(out string) (string, bool) {
 		return out, true
 	}
 
-	if fn := util.ParseFileNameTemplate(out); fn != out {
+	if fn := timex.ConvertLayout(out); fn != out {
 		return "", false
 	}
 
-	if _, appendMode, maxSize := util.ParseOutputPath(out); appendMode || maxSize > 0 {
+	if _, appendMode, maxSize := rotate.ParseOutputPath(out); appendMode || maxSize > 0 {
 		return "", false
 	}
 
