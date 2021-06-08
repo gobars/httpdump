@@ -104,7 +104,7 @@ func (o *App) run() {
 		util.LoopPackets(c, packets, o.createAssembler(c, senders), o.Idle)
 	}
 
-	senders.Close()
+	_ = senders.Close()
 	wg.Wait()
 }
 
