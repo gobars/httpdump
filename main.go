@@ -76,6 +76,8 @@ type App struct {
 	//  ##   "/var/log/log[^1-2]*  -> identical behavior as above
 	File string `flag:"f" usage:"File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll"`
 
+	Pprof string `usage:"pprof address to listen on, not activate pprof if empty, eg. :6060"`
+
 	handlerOption *handler.Option
 }
 
