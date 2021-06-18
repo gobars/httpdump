@@ -1,4 +1,4 @@
-#gossh -c testdata/b.toml
+#GOSSH_PBEPWD=xxxx gossh -c build.toml --group=1
 #printConfig = true
 #passphrase="xxxx"
 
