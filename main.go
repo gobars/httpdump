@@ -21,7 +21,7 @@ import (
 	"github.com/bingoohuang/gg/pkg/ctx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.2.5 2021-06-07 16:02:17" }
+func (App) VersionInfo() string { return "httpdump v1.2.6 2021-06-18 15:15:37" }
 
 func main() {
 	app := &App{}
