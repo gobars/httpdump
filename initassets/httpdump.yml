@@ -1,0 +1,37 @@
+---
+
+# Output level, url: only url, header: http headers, all: headers and text http body
+level: all
+# Interface name or pcap file. If not set, If is any, capture all interface traffics
+input: any
+# Filter by ip, if either src or dst ip is matched, the packet will be processed
+ip: ""
+# Filter by port, if either source or target port is matched, the packet will be processed
+port: 5003
+# Customized bpf, if it is set, -ip -port will be suppressed
+bpf: ""
+# Channel size to buffer tcp packets
+chan: 10240
+# Output channel size to buffer tcp packets
+outChan: 40960
+# Filter by request host, using wildcard match(*, ?)
+host: ""
+# Filter by request url path, using wildcard match(*, ?)
+uri: ""
+# Filter by request method, multiple by comma
+method: ""
+# Verbose flag, available req/rsp/all for http replay dump
+verbose: ""
+
+# std/fast/pair
+mode: fast
+# File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode
+#  Or Relay http address, eg http://127.0.0.1:5002
+output:
+  - stdout
+# Idle time to remove connection if no package received
+idle: 4m
+# File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll
+file: ""
+# pprof address to listen on, not activate pprof if empty, eg. :6060
+# Pprof: ":6060"
