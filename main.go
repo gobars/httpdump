@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"github.com/bingoohuang/gg/pkg/ctl"
 	"github.com/bingoohuang/gg/pkg/flagparse"
 	"github.com/bingoohuang/gg/pkg/rest"
 	"github.com/bingoohuang/gg/pkg/rotate"
@@ -21,11 +23,12 @@ import (
 	"github.com/bingoohuang/gg/pkg/ctx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.2.6 2021-06-18 15:15:37" }
+func (App) VersionInfo() string { return "httpdump v1.2.7 2021-06-21 14:13:46" }
 
 func main() {
 	app := &App{}
-	flagparse.Parse(app)
+	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"))
+	ctl.Config{Initing: app.Init, InitFiles: initAssets}.ProcessInit()
 
 	app.Print()
 
@@ -33,10 +36,15 @@ func main() {
 	app.run()
 }
 
+//go:embed initassets
+var initAssets embed.FS
+
 // App Command line options.
 type App struct {
-	Level string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
-	Input string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
+	Config string `flag:"c" usage:"yaml config filepath"`
+	Init   bool   `usage:"init example httpdump.yml/ctl and then exit"`
+	Level  string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
+	Input  string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 
 	Ip   string `usage:"Filter by ip, if either src or dst ip is matched, the packet will be processed"`
 	Port uint   `usage:"Filter by port, if either source or target port is matched, the packet will be processed"`
