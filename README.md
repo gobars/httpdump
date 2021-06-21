@@ -146,6 +146,7 @@ httpdump -ip 101.201.170.152 -port 80 # filter by ip and port
 
 ## 部署
 
+1. 查看版本：`httpdump -v` 最新版本是：httpdump v1.2.7 2021-06-21 14:13:46
 1. 生成启停命令文件 和 样例 yml 配置文件  `httpdump -init`
 2. 编辑 yml 配置文件 `httpdump.yml`，调整取值
 3. ./ctl help 查看帮助， `./ctl start` 启动
@@ -164,7 +165,7 @@ port: 5003
 method: "POST"
 # 输出 http 请求包
 output:
-  - log-yyyy-MM-dd.log:100M # 输出到日志文件，按天滚动，每个文件最大100M
+  - post-yyyy-MM-dd.log:100M     # 记录到日志文件，按天滚动，每个文件最大100M
   - "http://192.168.126.18:5003" # 重放到其它服务
   # - stdout
 ```
