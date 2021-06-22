@@ -114,7 +114,8 @@ func (o *App) run() {
 		if addr, ok := rest.MaybeURL(out); ok {
 			senders = append(senders, replay.CreateSender(c, wg, o.Method, o.File, o.Verbose, addr, o.OutChan))
 		} else {
-			senders = append(senders, rotate.NewQueueWriter(c, out, o.OutChan, true))
+			senders = append(senders, rotate.NewQueueWriter(out,
+				rotate.WithContext(c), rotate.WithOutChanSize(int(o.OutChan)), rotate.WithAppend(true)))
 		}
 	}
 
