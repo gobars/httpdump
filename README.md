@@ -146,11 +146,11 @@ httpdump -ip 101.201.170.152 -port 80 # filter by ip and port
 
 ## 部署
 
-1. 查看版本：`httpdump -v` 最新版本是：httpdump v1.2.7 2021-06-21 14:13:46
-1. 生成启停命令文件 和 样例 yml 配置文件  `httpdump -init`
+1. 查看版本：`./httpdump -v` 最新版本是：httpdump v1.2.7 2021-06-21 14:13:46
+1. 生成启停命令文件 和 样例 yml 配置文件  `./httpdump -init`
 2. 编辑 yml 配置文件 `httpdump.yml`，调整取值
 3. ./ctl help 查看帮助， `./ctl start` 启动
-4. 限制CPU在2个核上共占20% 启动 `LIMIT_CPU=20 LIMIT_CORES=2 ./ctl start`
+4. 限制CPU在2个核上共占20% 启动 `LIMIT_CPU=20 LIMIT_CORES=2 ./ctl start`，（需要linux安装了cgroups包)
 
 httpdump.yml 配置示例:
 
@@ -159,11 +159,10 @@ httpdump.yml 配置示例:
 ip: 192.168.126.5
 # 监听 端口
 port: 5003
-
 # 注意：ip 和 port 同时配置时，相当于设置了 bpf: tcp and ((dst host {ip} and dst port {port}) or (src host {ip} and src port {port}))
 
 # 监听 http 方法
-method: "POST"
+method: POST
 # 输出 http 请求包
 output:
   - post-yyyy-MM-dd.log:100M     # 记录到日志文件，按天滚动，每个文件最大100M

@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"embed"
-	"fmt"
 	"github.com/bingoohuang/gg/pkg/ctl"
 	"github.com/bingoohuang/gg/pkg/flagparse"
 	"github.com/bingoohuang/gg/pkg/rest"
 	"github.com/bingoohuang/gg/pkg/rotate"
+	"github.com/bingoohuang/golog"
 	"github.com/bingoohuang/jj"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,16 +24,27 @@ import (
 	"github.com/bingoohuang/gg/pkg/ctx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.2.7 2021-06-21 14:13:46" }
+func (App) VersionInfo() string { return "httpdump v1.2.8 2021-06-22 10:24:51" }
 
 func main() {
 	app := &App{}
 	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"))
 	ctl.Config{Initing: app.Init, InitFiles: initAssets}.ProcessInit()
 
+	golog.SetupLogrus()
 	app.Print()
-
-	app.handlerOption = app.createHandleOption()
+	app.handlerOption = &handler.Option{
+		Resp:     app.Resp,
+		Host:     app.Host,
+		Uri:      app.Uri,
+		Method:   app.Method,
+		Status:   app.Status,
+		Level:    app.Level,
+		DumpBody: app.DumpBody,
+		DumpMax:  app.dumpMax,
+		Force:    app.Force,
+		Curl:     app.Curl,
+	}
 	app.run()
 }
 
@@ -166,23 +178,8 @@ func (o *App) processDumpBody() {
 	}
 }
 
-func (o *App) createHandleOption() *handler.Option {
-	return &handler.Option{
-		Resp:     o.Resp,
-		Host:     o.Host,
-		Uri:      o.Uri,
-		Method:   o.Method,
-		Status:   o.Status,
-		Level:    o.Level,
-		DumpBody: o.DumpBody,
-		DumpMax:  o.dumpMax,
-		Force:    o.Force,
-		Curl:     o.Curl,
-	}
-}
-
 func (o App) Print() {
 	s := ss.Jsonify(o)
 	s, _ = jj.Set(s, "Idle", o.Idle.String())
-	fmt.Println("Options:", s)
+	log.Println("Options:", s)
 }
