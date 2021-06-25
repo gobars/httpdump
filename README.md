@@ -178,5 +178,5 @@ output:
 
 ## 采集 CPU profile
 
-1. 在工作目录下：`touch jj.cpu; sudo kill -USR1 {pid}`，等待约10分钟，再次执行同样命令，可以在当前目录下看到生成的 cpu.profile`文件
+1. 在工作目录下：`touch jj.cpu; kill -USR1 {pid}`，开始采集，等待 5-10 分钟，再次执行相同命令，结束采集，可以在当前目录下看到生成的 cpu.profile`文件
 2. 下载文件到本地，使用go工具链查看，例如： `go tool pprof -http :9402 cpu.profile`
