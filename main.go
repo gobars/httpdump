@@ -24,7 +24,7 @@ import (
 	"github.com/bingoohuang/gg/pkg/sigx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.2.10 2021-06-25 12:43:28" }
+func (App) VersionInfo() string { return "httpdump v1.3.0 2021-06-25 18:04:05" }
 
 func main() {
 	app := &App{}
@@ -78,7 +78,7 @@ type App struct {
 	Version bool `flag:"v" usage:"Print version info and exit"`
 
 	DumpBody string   `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
-	Mode     string   `val:"fast" usage:"std/fast/pair"`
+	Mode     string   `val:"fast" usage:"std/fast"`
 	Output   []string `usage:"File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode\n Or Relay http address, eg http://127.0.0.1:5002"`
 
 	Idle time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
@@ -134,8 +134,8 @@ func (o *App) run() {
 
 func (o *App) createAssembler(c context.Context, sender handler.Sender) util.Assembler {
 	switch o.Mode {
-	case "fast", "pair":
-		h := o.createConnectionHandler(sender)
+	case "fast":
+		h := &handler.ConnectionHandlerFast{Option: o.handlerOption, Sender: sender}
 		return handler.NewTCPAssembler(h, o.Chan, o.Ip, uint16(o.Port), o.Resp)
 	default:
 		return o.createTcpStdAssembler(c, sender)
@@ -147,14 +147,6 @@ func (o *App) createTcpStdAssembler(c context.Context, printer handler.Sender) *
 	p := tcpassembly.NewStreamPool(f)
 	assembler := tcpassembly.NewAssembler(p)
 	return &handler.TcpStdAssembler{Assembler: assembler}
-}
-
-func (o *App) createConnectionHandler(sender handler.Sender) handler.ConnectionHandler {
-	if o.Mode == "fast" {
-		return &handler.ConnectionHandlerFast{Option: o.handlerOption, Sender: sender}
-	} else {
-		return &handler.ConnectionHandlerPair{Option: o.handlerOption, Sender: sender}
-	}
 }
 
 func (o *App) PostProcess() {

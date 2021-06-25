@@ -22,7 +22,7 @@ outchan: 40960
 #   host    string  usage: Filter by request host, using wildcard match(*, ?) 
 #   uri     string  usage: Filter by request url path, using wildcard match(*, ?) 
 #   method  string  usage: Filter by request method, multiple by comma
-mehotd: POST
+method: POST
 #   verbose string  usage: Verbose flag, available req/rsp/all for http replay dump 
 #
 #   resp    bool  usage: Print response or not 

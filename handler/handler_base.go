@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/bingoohuang/httpdump/util"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -83,6 +84,7 @@ func (h *HandlerBase) printHeader(header map[string][]string) {
 			h.writeFormat("%s: %s\r\n", name, value)
 		}
 	}
+
 }
 
 type Req interface {
@@ -115,52 +117,87 @@ func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
 	defer c.requestStream.Close()
 
-	rr := bufio.NewReader(c.requestStream)
-	defer discardAll(rr)
-	o := h.option
+	rb := &bytes.Buffer{}
+	var lastMethod string
 
-	for {
-		h.buffer = new(bytes.Buffer)
-		r, err := httpport.ReadRequest(rr)
-		startTime := c.lastReqTimestamp
-		if err != nil {
-			h.handleError(err, startTime, "request")
-			break
+	for p := range c.requestStream.Packets() {
+		if method, yes := util.HasRequestTitle(p.Payload); yes {
+			h.dealRequest(rb, h.option, lastMethod, c)
+			lastMethod = method
 		}
 
-		h.processRequest(r, c.requestStream.GetLastUUID(), o, startTime)
+		rb.Write(p.Payload)
 	}
+
+	h.dealRequest(rb, h.option, lastMethod, c)
+	h.handleError(io.EOF, c.lastReqTimestamp, "request")
+}
+
+func (h *HandlerBase) dealRequest(rb *bytes.Buffer, o *Option, method string, c *TCPConnection) error {
+	defer rb.Reset()
+
+	if rb.Len() > 0 && (o.Method == "" || strings.Contains(o.Method, method)) {
+		h.buffer = new(bytes.Buffer)
+		r, err := httpport.ReadRequest(bufio.NewReader(rb))
+		if err != nil {
+			h.handleError(err, c.lastReqTimestamp, "request")
+		} else {
+			h.processRequest(false, r, c.requestStream.GetLastUUID(), o, c.lastReqTimestamp)
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // read http request/response stream, and do output
 func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
 	defer c.responseStream.Close()
-
-	o := h.option
-	if !o.Resp {
-		discardAll(c.responseStream)
+	if !h.option.Resp {
+		c.responseStream.DiscardAll()
 		return
 	}
 
-	rr := bufio.NewReader(c.responseStream)
-	defer discardAll(rr)
+	rb := &bytes.Buffer{}
+	var lastCode int
 
-	for {
-		h.buffer = new(bytes.Buffer)
-		r, err := httpport.ReadResponse(rr, nil)
-		endTime := c.lastRspTimestamp
-		if err != nil {
-			h.handleError(err, endTime, "response")
-			break
+	for p := range c.responseStream.Packets() {
+		if code, yes := util.HasResponseTitle(p.Payload); yes {
+			h.dealResponse(rb, h.option, lastCode, c)
+			lastCode = code
 		}
 
-		h.processResponse(r, c.responseStream.GetLastUUID(), o, endTime)
+		rb.Write(p.Payload)
 	}
+
+	h.dealResponse(rb, h.option, lastCode, c)
+	h.handleError(io.EOF, c.lastRspTimestamp, "response")
 }
 
-func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime time.Time) {
-	defer discardAll(r.GetBody())
+func (h *HandlerBase) dealResponse(rb *bytes.Buffer, o *Option, code int, c *TCPConnection) error {
+	defer rb.Reset()
+
+	if rb.Len() > 0 && o.Status.Contains(code) {
+		h.buffer = new(bytes.Buffer)
+		r, err := httpport.ReadResponse(bufio.NewReader(rb), nil)
+		if err != nil {
+			h.handleError(err, c.lastRspTimestamp, "response")
+		} else {
+			h.processResponse(false, r, c.responseStream.GetLastUUID(), o, c.lastRspTimestamp)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func (h *HandlerBase) processRequest(discard bool, r Req, uuid []byte, o *Option, startTime time.Time) {
+	if discard {
+		defer discardAll(r.GetBody())
+	}
 
 	if filtered := o.Host != "" && !wildcardMatch(r.GetHost(), o.Host) ||
 		o.Uri != "" && !wildcardMatch(r.GetRequestURI(), o.Uri) ||
@@ -173,8 +210,10 @@ func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime ti
 	h.sender.Send(h.buffer.String(), true)
 }
 
-func (h *HandlerBase) processResponse(r Rsp, uuid []byte, o *Option, endTime time.Time) {
-	defer discardAll(r.GetBody())
+func (h *HandlerBase) processResponse(discard bool, r Rsp, uuid []byte, o *Option, endTime time.Time) {
+	if discard {
+		defer discardAll(r.GetBody())
+	}
 
 	if filtered := !o.Status.Contains(r.GetStatusCode()); filtered {
 		return
@@ -261,7 +300,6 @@ func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, uuid []byte, seq i
 	}
 
 	if hasBody {
-		h.writeLine()
 		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
@@ -282,7 +320,7 @@ func parseContentLength(cl int64, header http.Header) int64 {
 // print http request/response body
 func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 	// deal with content encoding such as gzip, deflate
-	nr, decompressed := tryDecompress(header, reader)
+	nr, decompressed := util.TryDecompress(header, reader)
 	if decompressed {
 		defer nr.Close()
 	}
