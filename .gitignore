@@ -8,3 +8,5 @@ vendor/
 bbb*.http
 /ctl
 /httpdump.yml
+/log*
+/*.profile

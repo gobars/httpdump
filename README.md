@@ -169,3 +169,14 @@ output:
   - "http://192.168.126.18:5003" # 重放到其它服务
   # - stdout
 ```
+
+
+
+## 删除大量文件
+
+`find . -type f -name 'log-*'  -delete`
+
+## 采集 CPU profile
+
+1. 在工作目录下：`touch jj.cpu; sudo kill -USR1 {pid}`，等待约10分钟，再次执行同样命令，可以在当前目录下看到生成的 cpu.profile`文件
+2. 下载文件到本地，使用go工具链查看，例如： `go tool pprof -http :9402 cpu.profile`

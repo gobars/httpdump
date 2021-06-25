@@ -21,10 +21,10 @@ import (
 	"github.com/bingoohuang/httpdump/util"
 	"github.com/google/gopacket/tcpassembly"
 
-	"github.com/bingoohuang/gg/pkg/ctx"
+	"github.com/bingoohuang/gg/pkg/sigx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.2.9 2021-06-22 14:57:02" }
+func (App) VersionInfo() string { return "httpdump v1.2.10 2021-06-25 12:43:28" }
 
 func main() {
 	app := &App{}
@@ -102,7 +102,8 @@ type App struct {
 }
 
 func (o *App) run() {
-	c, _ := ctx.RegisterSignals(nil)
+	c, _ := sigx.RegisterSignals(nil)
+	sigx.RegisterSignalProfile(c)
 	wg := &sync.WaitGroup{}
 
 	if len(o.Output) == 0 {

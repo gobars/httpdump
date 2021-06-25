@@ -48,3 +48,4 @@ idle: 4m
 #  file string  usage: File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll
 
 #  pprof string  usage: pprof address to listen on, not activate pprof if empty, eg. :6060
+#pprof: :6060
