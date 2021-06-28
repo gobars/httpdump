@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"sync/atomic"
 
 	"github.com/bingoohuang/httpdump/util"
@@ -32,3 +33,17 @@ func (o *Option) CanDump() bool {
 
 	return o.DumpMax <= 0 || atomic.LoadUint32(&o.dumpNum) < o.DumpMax
 }
+
+func (o *Option) PermitsMethod(method string) bool {
+	return o.Method == "" || strings.Contains(o.Method, method)
+}
+
+func (o *Option) PermitsUri(uri string) bool { return o.Uri == "" || wildcardMatch(uri, o.Uri) }
+
+func (o *Option) PermitsHost(host string) bool { return o.Host == "" || wildcardMatch(host, o.Host) }
+
+func (o *Option) Permits(r Req) bool {
+	return o.PermitsHost(r.GetHost()) && o.PermitsUri(r.GetRequestURI()) && o.PermitsMethod(r.GetMethod())
+}
+
+func (o *Option) PermitsCode(code int) bool { return o.Status.Contains(code) }

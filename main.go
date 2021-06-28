@@ -24,7 +24,7 @@ import (
 	"github.com/bingoohuang/gg/pkg/sigx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.3.0 2021-06-25 18:04:05" }
+func (App) VersionInfo() string { return "httpdump v1.3.1 2021-06-28 10:35:32" }
 
 func main() {
 	app := &App{}

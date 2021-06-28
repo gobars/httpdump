@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -118,37 +117,24 @@ func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 	defer c.requestStream.Close()
 
 	rb := &bytes.Buffer{}
-	var lastMethod string
+	var method string
 
 	for p := range c.requestStream.Packets() {
-		if method, yes := util.HasRequestTitle(p.Payload); yes {
-			h.dealRequest(rb, h.option, lastMethod, c)
-			lastMethod = method
+		// 请求开头行解析成功，是一个新的请求
+		if m, yes := util.ParseRequestTitle(p.Payload); yes {
+			rb.Reset() // 清空缓冲
+			method = m // 记录请求方法
 		}
 
 		rb.Write(p.Payload)
-	}
 
-	h.dealRequest(rb, h.option, lastMethod, c)
-	h.handleError(io.EOF, c.lastReqTimestamp, "request")
-}
-
-func (h *HandlerBase) dealRequest(rb *bytes.Buffer, o *Option, method string, c *TCPConnection) error {
-	defer rb.Reset()
-
-	if rb.Len() > 0 && (o.Method == "" || strings.Contains(o.Method, method)) {
-		h.buffer = new(bytes.Buffer)
-		r, err := httpport.ReadRequest(bufio.NewReader(rb))
-		if err != nil {
-			h.handleError(err, c.lastReqTimestamp, "request")
-		} else {
-			h.processRequest(false, r, c.requestStream.GetLastUUID(), o, c.lastReqTimestamp)
+		if rb.Len() > 0 && h.option.PermitsMethod(method) && util.Http1EndHint(rb.Bytes()) {
+			h.dealRequest(rb, h.option, c)
+			rb.Reset()
 		}
-
-		return err
 	}
 
-	return nil
+	h.handleError(io.EOF, c.lastReqTimestamp, "request")
 }
 
 // read http request/response stream, and do output
@@ -164,34 +150,43 @@ func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 	var lastCode int
 
 	for p := range c.responseStream.Packets() {
-		if code, yes := util.HasResponseTitle(p.Payload); yes {
-			h.dealResponse(rb, h.option, lastCode, c)
+		if code, yes := util.ParseResponseTitle(p.Payload); yes {
+			rb.Reset() // 清空缓冲
 			lastCode = code
 		}
 
 		rb.Write(p.Payload)
+		if rb.Len() > 0 && h.option.PermitsCode(lastCode) && util.Http1EndHint(rb.Bytes()) {
+			h.dealResponse(rb, h.option, c)
+			rb.Reset()
+		}
 	}
 
-	h.dealResponse(rb, h.option, lastCode, c)
 	h.handleError(io.EOF, c.lastRspTimestamp, "response")
 }
 
-func (h *HandlerBase) dealResponse(rb *bytes.Buffer, o *Option, code int, c *TCPConnection) error {
-	defer rb.Reset()
-
-	if rb.Len() > 0 && o.Status.Contains(code) {
-		h.buffer = new(bytes.Buffer)
-		r, err := httpport.ReadResponse(bufio.NewReader(rb), nil)
-		if err != nil {
-			h.handleError(err, c.lastRspTimestamp, "response")
-		} else {
-			h.processResponse(false, r, c.responseStream.GetLastUUID(), o, c.lastRspTimestamp)
-		}
-
-		return err
+func (h *HandlerBase) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) error {
+	h.buffer = new(bytes.Buffer)
+	r, err := httpport.ReadRequest(bufio.NewReader(rb))
+	if err != nil {
+		h.handleError(err, c.lastReqTimestamp, "request")
+	} else {
+		h.processRequest(false, r, c.requestStream.GetLastUUID(), o, c.lastReqTimestamp)
 	}
 
-	return nil
+	return err
+}
+
+func (h *HandlerBase) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection) error {
+	h.buffer = new(bytes.Buffer)
+	r, err := httpport.ReadResponse(bufio.NewReader(rb), nil)
+	if err != nil {
+		h.handleError(err, c.lastRspTimestamp, "response")
+	} else {
+		h.processResponse(false, r, c.responseStream.GetLastUUID(), o, c.lastRspTimestamp)
+	}
+
+	return err
 }
 
 func (h *HandlerBase) processRequest(discard bool, r Req, uuid []byte, o *Option, startTime time.Time) {
@@ -199,9 +194,7 @@ func (h *HandlerBase) processRequest(discard bool, r Req, uuid []byte, o *Option
 		defer discardAll(r.GetBody())
 	}
 
-	if filtered := o.Host != "" && !wildcardMatch(r.GetHost(), o.Host) ||
-		o.Uri != "" && !wildcardMatch(r.GetRequestURI(), o.Uri) ||
-		o.Method != "" && !strings.Contains(o.Method, r.GetMethod()); filtered {
+	if !o.Permits(r) {
 		return
 	}
 

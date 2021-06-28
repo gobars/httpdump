@@ -10,8 +10,30 @@ import (
 	"unsafe"
 )
 
+func Http1StartHint(payload []byte) (isRequest, isResponse bool) {
+	if HasRequestTitle(payload) {
+		return true, false
+	}
+	if HasResponseTitle(payload) {
+		return false, true
+	}
+
+	// No request or response detected
+	return false, false
+}
+
+func Http1EndHint(payload []byte) bool {
+	return HasFullPayload(nil, payload)
+}
+
 // HasRequestTitle reports whether this payload has an HTTP/1 request title
-func HasRequestTitle(payload []byte) (method string, yes bool) {
+func HasRequestTitle(payload []byte) bool {
+	_, yes := ParseRequestTitle(payload)
+	return yes
+}
+
+// ParseRequestTitle reports whether this payload has an HTTP/1 request title
+func ParseRequestTitle(payload []byte) (method string, yes bool) {
 	s := SliceToString(payload)
 	if len(s) < MinRequestCount {
 		return "", false
@@ -40,7 +62,13 @@ func HasRequestTitle(payload []byte) (method string, yes bool) {
 }
 
 // HasResponseTitle reports whether this payload has an HTTP/1 response title
-func HasResponseTitle(payload []byte) (code int, yes bool) {
+func HasResponseTitle(payload []byte) bool {
+	_, yes := ParseResponseTitle(payload)
+	return yes
+}
+
+// ParseResponseTitle reports whether this payload has an HTTP/1 response title
+func ParseResponseTitle(payload []byte) (code int, yes bool) {
 	s := SliceToString(payload)
 	if len(s) < MinResponseCount {
 		return 0, false
@@ -89,6 +117,28 @@ const (
 // CRLF In HTTP newline defined by 2 bytes (for both windows and *nix support)
 var CRLF = []byte("\r\n")
 
+// EmptyLine acts as separator: end of Headers or Body (in some cases)
+var EmptyLine = []byte("\r\n\r\n")
+
+// MIMEHeadersEndPos finds end of the Headers section, which should end with empty line.
+func MIMEHeadersEndPos(payload []byte) int {
+	pos := bytes.Index(payload, EmptyLine)
+	if pos < 0 {
+		return -1
+	}
+	return pos + 4
+}
+
+// MIMEHeadersStartPos finds start of Headers section
+// It just finds position of second line (first contains location and method).
+func MIMEHeadersStartPos(payload []byte) int {
+	pos := bytes.Index(payload, CRLF)
+	if pos < 0 {
+		return -1
+	}
+	return pos + 2 // Find first line end
+}
+
 // Method returns HTTP method
 func Method(payload []byte) []byte {
 	end := bytes.IndexByte(payload, ' ')
@@ -104,6 +154,170 @@ var Methods = map[string]bool{
 	http.MethodConnect: true, http.MethodDelete: true, http.MethodGet: true,
 	http.MethodHead: true, http.MethodOptions: true, http.MethodPatch: true,
 	http.MethodPost: true, http.MethodPut: true, http.MethodTrace: true,
+}
+
+// ProtocolStateSetter is an interface used to provide protocol state for future use
+type ProtocolStateSetter interface {
+	SetProtocolState(interface{})
+	ProtocolState() interface{}
+}
+
+type httpProto struct {
+	body         int // body index
+	headerStart  int
+	headerParsed bool // we checked necessary headers
+	hasFullBody  bool // all chunks has been parsed
+	isChunked    bool // Transfer-Encoding: chunked
+	bodyLen      int  // Content-Length's value
+	hasTrailer   bool // Trailer header?
+}
+
+// HasFullPayload checks if this message has full or valid payloads and returns true.
+// Message param is optional but recommended on cases where 'data' is storing
+// partial-to-full stream of bytes(packets).
+func HasFullPayload(state *httpProto, payload []byte) bool {
+	if state == nil {
+		state = new(httpProto)
+	}
+	if state.headerStart < 1 {
+		state.headerStart = MIMEHeadersStartPos(payload)
+		if state.headerStart < 0 {
+			return false
+		}
+	}
+
+	if state.body < 1 {
+		var pos int
+		endPos := MIMEHeadersEndPos(payload)
+		if endPos < 0 {
+			pos += len(payload)
+		} else {
+			pos += endPos
+		}
+
+		if endPos > 0 {
+			state.body = pos
+		}
+	}
+
+	if !state.headerParsed {
+		chunked := Header(payload, []byte("Transfer-Encoding"))
+
+		if len(chunked) > 0 && bytes.Index(payload, []byte("chunked")) > 0 {
+			state.isChunked = true
+			// trailers are generally not allowed in non-chunks body
+			state.hasTrailer = len(Header(payload, []byte("Trailer"))) > 0
+		} else {
+			contentLen := Header(payload, []byte("Content-Length"))
+			state.bodyLen, _ = atoI(contentLen, 10)
+		}
+
+		pos := len(payload)
+		if state.bodyLen > 0 || pos >= state.body {
+			state.headerParsed = true
+		}
+	}
+
+	bodyLen := len(payload)
+	bodyLen -= state.body
+
+	if state.isChunked {
+		// check chunks
+		if bodyLen < 1 {
+			return false
+		}
+
+		// check trailer headers
+		if state.hasTrailer {
+			if bytes.HasSuffix(payload, []byte("\r\n\r\n")) {
+				return true
+			}
+		} else {
+			if bytes.HasSuffix(payload, []byte("0\r\n\r\n")) {
+				state.hasFullBody = true
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// check for content-length header
+	return state.bodyLen == bodyLen
+}
+
+// Header returns header value, if header not found, value will be blank
+func Header(payload, name []byte) []byte {
+	val, _, _, _, _ := header(payload, name)
+
+	return val
+}
+
+// HasTitle reports if this payload has an http/1 title
+func HasTitle(payload []byte) bool {
+	return HasRequestTitle(payload) || HasResponseTitle(payload)
+}
+
+// header return value and positions of header/value start/end.
+// If not found, value will be blank, and headerStart will be -1
+// Do not support multi-line headers.
+func header(payload []byte, name []byte) (value []byte, headerStart, headerEnd, valueStart, valueEnd int) {
+	if HasTitle(payload) {
+		headerStart = MIMEHeadersStartPos(payload)
+		if headerStart < 0 {
+			return
+		}
+	} else {
+		headerStart = 0
+	}
+
+	var colonIndex int
+	for headerStart < len(payload) {
+		headerEnd = bytes.IndexByte(payload[headerStart:], '\n')
+		if headerEnd == -1 {
+			break
+		}
+		headerEnd += headerStart
+		colonIndex = bytes.IndexByte(payload[headerStart:headerEnd], ':')
+		if colonIndex == -1 {
+			break
+		}
+		colonIndex += headerStart
+		if bytes.EqualFold(payload[headerStart:colonIndex], name) {
+			valueStart = colonIndex + 1
+			valueEnd = headerEnd - 2
+			break
+		}
+		headerStart = headerEnd + 1 // move to the next header
+	}
+	if valueStart == 0 {
+		headerStart = -1
+		headerEnd = -1
+		valueEnd = -1
+		valueStart = -1
+		return
+	}
+
+	// ignore empty space after ':'
+	for valueStart < valueEnd {
+		if payload[valueStart] < 0x21 {
+			valueStart++
+		} else {
+			break
+		}
+	}
+
+	// ignore empty space at end of header value
+	for valueEnd > valueStart {
+		if payload[valueEnd] < 0x21 {
+			valueEnd--
+		} else {
+			break
+		}
+	}
+	value = payload[valueStart : valueEnd+1]
+
+	return
 }
 
 // this works with positive integers
