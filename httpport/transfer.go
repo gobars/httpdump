@@ -382,7 +382,14 @@ func readTransfer(req *Request, resp *Response, r *bufio.Reader) (err error) {
 		if noBodyExpected(t.RequestMethod) {
 			t.Body = eofReader
 		} else {
-			t.Body = &body{src: NewChunkedReader(r), hdr: msg, r: r, closing: t.Close}
+			b := &body{src: NewChunkedReader(r), hdr: msg, r: r, closing: t.Close}
+			if chunkedBody, err := io.ReadAll(b); err != nil {
+				return err
+			} else {
+				t.Body = ioutil.NopCloser(bytes.NewReader(chunkedBody))
+				t.TransferEncoding = nil
+				t.ContentLength = int64(len(chunkedBody))
+			}
 		}
 	case realLength == 0:
 		t.Body = eofReader

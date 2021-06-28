@@ -229,9 +229,12 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 	}
 
 	h.writeFormat("%s %s %s\r\n", r.GetMethod(), r.GetRequestURI(), r.GetProto())
-	h.printHeader(r.GetHeader())
+	header := r.GetHeader()
+	contentLength := parseContentLength(r.GetContentLength(), header)
+	header["Content-Length"] = []string{fmt.Sprintf("%d", contentLength)}
+	h.printHeader(header)
+	h.writeBytes([]byte("\r\n"))
 
-	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
 	hasBody := contentLength != 0 && !ss.AnyOf(r.GetMethod(), "GET", "HEAD", "TRACE", "OPTIONS")
 
 	if hasBody && o.CanDump() {
@@ -252,7 +255,7 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 	}
 
 	if hasBody {
-		h.printBody(r.GetHeader(), r.GetBody())
+		h.printBody(header, r.GetBody())
 	}
 }
 
@@ -351,8 +354,6 @@ func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 	}
 
 	if l := len(body); l > 0 {
-		h.writeFormat("Content-Length: %d\r\n", l)
-		h.writeBytes([]byte("\r\n"))
 		h.writeBytes(body)
 	}
 }
