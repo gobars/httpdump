@@ -3,7 +3,7 @@ module github.com/bingoohuang/httpdump
 go 1.16
 
 require (
-	github.com/bingoohuang/gg v0.0.0-20210625034033-b85938499196
+	github.com/bingoohuang/gg v0.0.0-20210719041031-d9216ab542c0
 	github.com/bingoohuang/golog v0.0.0-20210622065530-2f494c20bcaa
 	github.com/bingoohuang/jj v0.0.0-20210520104351-993fb085fbb6
 	github.com/bmatcuk/doublestar/v3 v3.0.0
@@ -17,3 +17,5 @@ require (
 	golang.org/x/text v0.3.6
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 )
+
+replace github.com/goccy/go-yaml => github.com/bingoohuang/go-yaml v1.8.11-0.20210719040622-7e6a9879a76a
