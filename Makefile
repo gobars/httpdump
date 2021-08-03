@@ -12,6 +12,7 @@ sec:
 
 init:
 	export GOPROXY=https://goproxy.cn
+	go mod tidy
 
 lint:
 	#golangci-lint run --enable-all
@@ -27,7 +28,7 @@ fmt:
 	goimports -w .
 
 install: init
-	go install -x -ldflags="-s -w" ./...
+	go install -ldflags="-s -w" ./...
 	ls -lh ~/go/bin/${app}
 	upx --best --lzma  `which ${app}`
 	ls -lh ~/go/bin/${app}
