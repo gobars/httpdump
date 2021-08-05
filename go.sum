@@ -4,8 +4,8 @@ github.com/DataDog/zstd v1.4.1/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/bingoohuang/gg v0.0.0-20210608031951-72884199b0ac/go.mod h1:kKNUAtRrABOvh5ztjh9Q5qtJBkx0sxwCHBQDBgWPhbw=
-github.com/bingoohuang/gg v0.0.0-20210803065417-053e245ca710 h1:8T6CBRhe/4z8k4UrnCzAeQiwqPq60pNdsxaJSopWKQQ=
-github.com/bingoohuang/gg v0.0.0-20210803065417-053e245ca710/go.mod h1:kdm12l/wITxkuqXaIewPXKsKnDmY4jugiSbLqS9K99A=
+github.com/bingoohuang/gg v0.0.0-20210805041937-2bbb62574576 h1:6T5EDqWub/2LZR1rafKIuEv7W9mbXvkMCnG+qBX/ssE=
+github.com/bingoohuang/gg v0.0.0-20210805041937-2bbb62574576/go.mod h1:kdm12l/wITxkuqXaIewPXKsKnDmY4jugiSbLqS9K99A=
 github.com/bingoohuang/ginx v0.0.0-20200729033750-047869f5e81c/go.mod h1:fv5fKhsGUfPInVsslF5FJv2oNlZn153C5OogaaUFvFc=
 github.com/bingoohuang/go-yaml v1.8.11-0.20210728042640-dd45bee5a10f h1:3VA7EtOIol6p3x8udi4fM45o71qBZrS6MakRxehy5Ek=
 github.com/bingoohuang/go-yaml v1.8.11-0.20210728042640-dd45bee5a10f/go.mod h1:CqSxKzOVtBsKSt4rxMV1BCh4jK6WtNT3b55q7eECx64=
