@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"embed"
-	"github.com/bingoohuang/gg/pkg/ctl"
 	"github.com/bingoohuang/gg/pkg/flagparse"
 	"github.com/bingoohuang/gg/pkg/rest"
 	"github.com/bingoohuang/gg/pkg/rotate"
+	"github.com/bingoohuang/gg/pkg/v"
 	"github.com/bingoohuang/golog"
 	"github.com/bingoohuang/jj"
 	"log"
@@ -24,12 +24,12 @@ import (
 	"github.com/bingoohuang/gg/pkg/sigx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.3.3 2021-08-05 12:20:43" }
+func (App) VersionInfo() string { return v.Version() }
 
 func main() {
 	app := &App{}
-	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"))
-	ctl.Config{Initing: app.Init, InitFiles: initAssets}.ProcessInit()
+	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"),
+		flagparse.ProcessInit(&initAssets))
 
 	golog.SetupLogrus()
 	app.Print()
