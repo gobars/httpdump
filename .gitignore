@@ -6,5 +6,7 @@ vendor/
 /httplive.db
 .DS_Store
 bbb*.http
-/httpdump.yml
 /ctl
+/httpdump.yml
+/log*
+/*.profile

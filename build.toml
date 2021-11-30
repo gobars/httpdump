@@ -2,6 +2,8 @@
 #printConfig = true
 #passphrase="xxxx"
 
+group = "1"
+
 hosts = [
     "192.168.126.182 footstone/{PBE}BX6qwkwV8yF-dBwoM4K7P4qK4ege4mhz id=1 group=1",
     "d5k.co d5k:{PBE}0nZXJnR3ZeL3z3GYQbQwV6BtPkd0GbEl id=2 group=2",

@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net"
 	"strconv"
 	"time"
@@ -233,7 +232,6 @@ func (c *TCPConnection) finish() {
 type NetworkStream struct {
 	window *ReceiveWindow
 	c      chan *layers.TCP
-	remain []byte
 	ignore bool
 	closed bool
 
@@ -252,23 +250,25 @@ type Stream interface {
 	SetClosed(closed bool)
 	IsClosed() bool
 	Finish()
-	Read(p []byte) (n int, err error)
+	Packets() chan *layers.TCP
 	Close() error
 	GetLastUUID() []byte
+	DiscardAll()
 }
 
 type FakeStream struct {
 	closed bool
 }
 
-func (*FakeStream) GetLastUUID() []byte            { panic("should not be called") }
-func (*FakeStream) Close() error                   { panic("should not be called") }
-func (*FakeStream) Read([]byte) (n int, err error) { panic("should not be called") }
-func (*FakeStream) AppendPacket(*layers.TCP)       {}
-func (*FakeStream) ConfirmPacket(uint32)           {}
-func (f *FakeStream) SetClosed(closed bool)        { f.closed = closed }
-func (f *FakeStream) IsClosed() bool               { return f.closed }
-func (*FakeStream) Finish()                        {}
+func (*FakeStream) GetLastUUID() []byte         { panic("should not be called") }
+func (*FakeStream) Close() error                { panic("should not be called") }
+func (f *FakeStream) Packets() chan *layers.TCP { panic("should not be called") }
+func (*FakeStream) AppendPacket(*layers.TCP)    {}
+func (*FakeStream) ConfirmPacket(uint32)        {}
+func (f *FakeStream) SetClosed(closed bool)     { f.closed = closed }
+func (f *FakeStream) IsClosed() bool            { return f.closed }
+func (*FakeStream) Finish()                     {}
+func (*FakeStream) DiscardAll()                 {}
 
 func newNetworkStream(src, dst Endpoint, isRequest bool, chanSize uint) Stream {
 	return &NetworkStream{
@@ -297,7 +297,7 @@ func (s *NetworkStream) ConfirmPacket(ack uint32) {
 func (s *NetworkStream) Finish() { close(s.c) }
 
 // UUID returns the UUID of a TCP request and its response.
-func (s *NetworkStream) UUID(p *layers.TCP) []byte {
+func (s NetworkStream) UUID(p *layers.TCP) []byte {
 	l, r := s.src, s.dst
 	streamID := uint64(l.port)<<48 | uint64(r.port)<<32 | uint64(ip2int(l.ip))
 	id := make([]byte, 12)
@@ -327,26 +327,11 @@ func ip2int(v string) uint32 {
 	return binary.BigEndian.Uint32(ip)
 }
 
-func (s *NetworkStream) Read(p []byte) (n int, err error) {
-	for len(s.remain) == 0 {
-		packet, ok := <-s.c
-		if !ok {
-			err = io.EOF
-			return
-		}
+func (s *NetworkStream) Packets() chan *layers.TCP { return s.c }
 
-		s.LastUUID = s.UUID(packet)
-		s.remain = packet.Payload
+func (s *NetworkStream) DiscardAll() {
+	for range s.c {
 	}
-
-	if len(s.remain) > len(p) {
-		n = copy(p, s.remain[:len(p)])
-		s.remain = s.remain[len(p):]
-	} else {
-		n = copy(p, s.remain)
-		s.remain = nil
-	}
-	return
 }
 
 // Close the stream

@@ -142,3 +142,41 @@ httpdump -ip 101.201.170.152 -port 80 # filter by ip and port
 抓取到指定IP端口的请求及相应的bpf
 
 `httpdump -bpf "tcp and ((dst host 192.168.1.1 and dst port 5003) or (src host 192.168.1.1 and src port 5003))"  -method POST`
+
+
+## 部署
+
+1. 查看版本：`./httpdump -v` 最新版本是：httpdump v1.2.7 2021-06-21 14:13:46
+1. 生成启停命令文件 和 样例 yml 配置文件  `./httpdump -init`
+2. 编辑 yml 配置文件 `httpdump.yml`，调整取值
+3. ./ctl help 查看帮助， `./ctl start` 启动
+4. 限制CPU在2个核上共占20% 启动 `LIMIT_CPU=20 LIMIT_CORES=2 ./ctl start`，（需要linux安装了cgroups包)
+
+httpdump.yml 配置示例:
+
+```yml
+# 监听 ip
+ip: 192.168.126.5
+# 监听 端口
+port: 5003
+# 注意：ip 和 port 同时配置时，相当于设置了 bpf: tcp and ((dst host {ip} and dst port {port}) or (src host {ip} and src port {port}))
+
+# 监听 http 方法
+method: POST
+# 输出 http 请求包
+output:
+  - post-yyyy-MM-dd.log:100M     # 记录到日志文件，按天滚动，每个文件最大100M
+  - "http://192.168.126.18:5003" # 重放到其它服务
+  # - stdout
+```
+
+
+
+## 删除大量文件
+
+`find . -type f -name 'log-*'  -delete`
+
+## 采集 CPU profile
+
+1. 在工作目录下：`touch jj.cpu; kill -USR1 {pid}`，开始采集，等待 5-10 分钟，再次执行相同命令，结束采集，可以在当前目录下看到生成的 cpu.profile`文件
+2. 下载文件到本地，使用go工具链查看，例如： `go tool pprof -http :9402 cpu.profile`

@@ -15,7 +15,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // ErrLineTooLong is returned when reading request or response bodies
@@ -383,7 +382,14 @@ func readTransfer(req *Request, resp *Response, r *bufio.Reader) (err error) {
 		if noBodyExpected(t.RequestMethod) {
 			t.Body = eofReader
 		} else {
-			t.Body = &body{src: NewChunkedReader(r), hdr: msg, r: r, closing: t.Close}
+			b := &body{src: NewChunkedReader(r), hdr: msg, r: r, closing: t.Close}
+			if chunkedBody, err := io.ReadAll(b); err != nil {
+				return err
+			} else {
+				t.Body = ioutil.NopCloser(bytes.NewReader(chunkedBody))
+				t.TransferEncoding = nil
+				t.ContentLength = int64(len(chunkedBody))
+			}
 		}
 	case realLength == 0:
 		t.Body = eofReader
@@ -617,7 +623,6 @@ type body struct {
 	closing      bool          // is the connection to be closed after reading body?
 	doEarlyClose bool          // whether Close should stop early
 
-	mu         sync.Mutex // guards following, and calls to Read and Close
 	sawEOF     bool
 	closed     bool
 	earlyClose bool   // Close called and we didn't read to the end of src
@@ -631,8 +636,6 @@ type body struct {
 var ErrBodyReadAfterClose = errors.New("http: invalid Read on closed Body")
 
 func (b *body) Read(p []byte) (n int, err error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	if b.closed {
 		return 0, ErrBodyReadAfterClose
 	}
@@ -773,8 +776,6 @@ func (b *body) unreadDataSizeLocked() int64 {
 }
 
 func (b *body) Close() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	if b.closed {
 		return nil
 	}
@@ -814,22 +815,16 @@ func (b *body) Close() error {
 }
 
 func (b *body) didEarlyClose() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	return b.earlyClose
 }
 
 // bodyRemains reports whether future Read calls might
 // yield data.
 func (b *body) bodyRemains() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	return !b.sawEOF
 }
 
 func (b *body) registerOnHitEOF(fn func()) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.onHitEOF = fn
 }
 

@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/bingoohuang/httpdump/util"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -83,6 +83,7 @@ func (h *HandlerBase) printHeader(header map[string][]string) {
 			h.writeFormat("%s: %s\r\n", name, value)
 		}
 	}
+
 }
 
 type Req interface {
@@ -115,56 +116,85 @@ func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
 	defer c.requestStream.Close()
 
-	rr := bufio.NewReader(c.requestStream)
-	defer discardAll(rr)
-	o := h.option
+	rb := &bytes.Buffer{}
+	var method string
 
-	for {
-		h.buffer = new(bytes.Buffer)
-		r, err := httpport.ReadRequest(rr)
-		startTime := c.lastReqTimestamp
-		if err != nil {
-			h.handleError(err, startTime, "request")
-			break
+	for p := range c.requestStream.Packets() {
+		// 请求开头行解析成功，是一个新的请求
+		if m, yes := util.ParseRequestTitle(p.Payload); yes {
+			rb.Reset() // 清空缓冲
+			method = m // 记录请求方法
 		}
 
-		h.processRequest(r, c.requestStream.GetLastUUID(), o, startTime)
+		rb.Write(p.Payload)
+
+		if rb.Len() > 0 && h.option.PermitsMethod(method) && util.Http1EndHint(rb.Bytes()) {
+			h.dealRequest(rb, h.option, c)
+			rb.Reset()
+		}
 	}
+
+	h.handleError(io.EOF, c.lastReqTimestamp, "request")
 }
 
 // read http request/response stream, and do output
 func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
 	defer c.responseStream.Close()
-
-	o := h.option
-	if !o.Resp {
-		discardAll(c.responseStream)
+	if !h.option.Resp {
+		c.responseStream.DiscardAll()
 		return
 	}
 
-	rr := bufio.NewReader(c.responseStream)
-	defer discardAll(rr)
+	rb := &bytes.Buffer{}
+	var lastCode int
 
-	for {
-		h.buffer = new(bytes.Buffer)
-		r, err := httpport.ReadResponse(rr, nil)
-		endTime := c.lastRspTimestamp
-		if err != nil {
-			h.handleError(err, endTime, "response")
-			break
+	for p := range c.responseStream.Packets() {
+		if code, yes := util.ParseResponseTitle(p.Payload); yes {
+			rb.Reset() // 清空缓冲
+			lastCode = code
 		}
 
-		h.processResponse(r, c.responseStream.GetLastUUID(), o, endTime)
+		rb.Write(p.Payload)
+		if rb.Len() > 0 && h.option.PermitsCode(lastCode) && util.Http1EndHint(rb.Bytes()) {
+			h.dealResponse(rb, h.option, c)
+			rb.Reset()
+		}
 	}
+
+	h.handleError(io.EOF, c.lastRspTimestamp, "response")
 }
 
-func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime time.Time) {
-	defer discardAll(r.GetBody())
+func (h *HandlerBase) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) error {
+	h.buffer = new(bytes.Buffer)
+	r, err := httpport.ReadRequest(bufio.NewReader(rb))
+	if err != nil {
+		h.handleError(err, c.lastReqTimestamp, "request")
+	} else {
+		h.processRequest(false, r, c.requestStream.GetLastUUID(), o, c.lastReqTimestamp)
+	}
 
-	if filtered := o.Host != "" && !wildcardMatch(r.GetHost(), o.Host) ||
-		o.Uri != "" && !wildcardMatch(r.GetRequestURI(), o.Uri) ||
-		o.Method != "" && !strings.Contains(o.Method, r.GetMethod()); filtered {
+	return err
+}
+
+func (h *HandlerBase) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection) error {
+	h.buffer = new(bytes.Buffer)
+	r, err := httpport.ReadResponse(bufio.NewReader(rb), nil)
+	if err != nil {
+		h.handleError(err, c.lastRspTimestamp, "response")
+	} else {
+		h.processResponse(false, r, c.responseStream.GetLastUUID(), o, c.lastRspTimestamp)
+	}
+
+	return err
+}
+
+func (h *HandlerBase) processRequest(discard bool, r Req, uuid []byte, o *Option, startTime time.Time) {
+	if discard {
+		defer discardAll(r.GetBody())
+	}
+
+	if !o.Permits(r) {
 		return
 	}
 
@@ -173,8 +203,10 @@ func (h *HandlerBase) processRequest(r Req, uuid []byte, o *Option, startTime ti
 	h.sender.Send(h.buffer.String(), true)
 }
 
-func (h *HandlerBase) processResponse(r Rsp, uuid []byte, o *Option, endTime time.Time) {
-	defer discardAll(r.GetBody())
+func (h *HandlerBase) processResponse(discard bool, r Rsp, uuid []byte, o *Option, endTime time.Time) {
+	if discard {
+		defer discardAll(r.GetBody())
+	}
 
 	if filtered := !o.Status.Contains(r.GetStatusCode()); filtered {
 		return
@@ -197,9 +229,12 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 	}
 
 	h.writeFormat("%s %s %s\r\n", r.GetMethod(), r.GetRequestURI(), r.GetProto())
-	h.printHeader(r.GetHeader())
+	header := r.GetHeader()
+	contentLength := parseContentLength(r.GetContentLength(), header)
+	header["Content-Length"] = []string{fmt.Sprintf("%d", contentLength)}
+	h.printHeader(header)
+	h.writeBytes([]byte("\r\n"))
 
-	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
 	hasBody := contentLength != 0 && !ss.AnyOf(r.GetMethod(), "GET", "HEAD", "TRACE", "OPTIONS")
 
 	if hasBody && o.CanDump() {
@@ -220,7 +255,7 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 	}
 
 	if hasBody {
-		h.printBody(r.GetHeader(), r.GetBody())
+		h.printBody(header, r.GetBody())
 	}
 }
 
@@ -261,7 +296,6 @@ func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, uuid []byte, seq i
 	}
 
 	if hasBody {
-		h.writeLine()
 		h.printBody(r.GetHeader(), r.GetBody())
 	}
 }
@@ -282,7 +316,7 @@ func parseContentLength(cl int64, header http.Header) int64 {
 // print http request/response body
 func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 	// deal with content encoding such as gzip, deflate
-	nr, decompressed := tryDecompress(header, reader)
+	nr, decompressed := util.TryDecompress(header, reader)
 	if decompressed {
 		defer nr.Close()
 	}
@@ -320,8 +354,6 @@ func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 	}
 
 	if l := len(body); l > 0 {
-		h.writeFormat("Content-Length: %d\r\n", l)
-		h.writeBytes([]byte("\r\n"))
 		h.writeBytes(body)
 	}
 }

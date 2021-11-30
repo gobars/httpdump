@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"embed"
-	"fmt"
-	"github.com/bingoohuang/gg/pkg/ctl"
 	"github.com/bingoohuang/gg/pkg/flagparse"
 	"github.com/bingoohuang/gg/pkg/rest"
 	"github.com/bingoohuang/gg/pkg/rotate"
+	"github.com/bingoohuang/gg/pkg/v"
+	"github.com/bingoohuang/golog"
 	"github.com/bingoohuang/jj"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,21 +21,30 @@ import (
 	"github.com/bingoohuang/httpdump/util"
 	"github.com/google/gopacket/tcpassembly"
 
-	"github.com/bingoohuang/gg/pkg/ctx"
+	"github.com/bingoohuang/gg/pkg/sigx"
 )
 
-func (App) VersionInfo() string { return "httpdump v1.2.6 2021-06-18 15:15:37" }
+func (App) VersionInfo() string { return v.Version() }
 
 func main() {
 	app := &App{}
-	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"))
-	ctl.Config{
-		Initing:   app.Init,
-		InitFiles: initAssets,
-	}.ProcessInit()
+	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"),
+		flagparse.ProcessInit(&initAssets))
 
+	golog.SetupLogrus()
 	app.Print()
-	app.handlerOption = app.createHandleOption()
+	app.handlerOption = &handler.Option{
+		Resp:     app.Resp,
+		Host:     app.Host,
+		Uri:      app.Uri,
+		Method:   app.Method,
+		Status:   app.Status,
+		Level:    app.Level,
+		DumpBody: app.DumpBody,
+		DumpMax:  app.dumpMax,
+		Force:    app.Force,
+		Curl:     app.Curl,
+	}
 	app.run()
 }
 
@@ -43,8 +53,8 @@ var initAssets embed.FS
 
 // App Command line options.
 type App struct {
-	Init   bool   `usage:"Initiate sample httpdump.yml/ctl and then exit"`
-	Config string `flag:"c" usage:"Filename of configuration in yaml format"`
+	Config string `flag:"c" usage:"yaml config filepath"`
+	Init   bool   `usage:"init example httpdump.yml/ctl and then exit"`
 	Level  string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
 	Input  string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 
@@ -68,7 +78,7 @@ type App struct {
 	Version bool `flag:"v" usage:"Print version info and exit"`
 
 	DumpBody string   `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
-	Mode     string   `val:"fast" usage:"std/fast/pair"`
+	Mode     string   `val:"fast" usage:"std/fast"`
 	Output   []string `usage:"File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode\n Or Relay http address, eg http://127.0.0.1:5002"`
 
 	Idle time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
@@ -92,7 +102,8 @@ type App struct {
 }
 
 func (o *App) run() {
-	c, _ := ctx.RegisterSignals(nil)
+	c, _ := sigx.RegisterSignals(nil)
+	sigx.RegisterSignalProfile(c)
 	wg := &sync.WaitGroup{}
 
 	if len(o.Output) == 0 {
@@ -104,7 +115,8 @@ func (o *App) run() {
 		if addr, ok := rest.MaybeURL(out); ok {
 			senders = append(senders, replay.CreateSender(c, wg, o.Method, o.File, o.Verbose, addr, o.OutChan))
 		} else {
-			senders = append(senders, rotate.NewQueueWriter(c, out, o.OutChan, true))
+			senders = append(senders, rotate.NewQueueWriter(out,
+				rotate.WithContext(c), rotate.WithOutChanSize(int(o.OutChan)), rotate.WithAppend(true)))
 		}
 	}
 
@@ -122,8 +134,8 @@ func (o *App) run() {
 
 func (o *App) createAssembler(c context.Context, sender handler.Sender) util.Assembler {
 	switch o.Mode {
-	case "fast", "pair":
-		h := o.createConnectionHandler(sender)
+	case "fast":
+		h := &handler.ConnectionHandlerFast{Option: o.handlerOption, Sender: sender}
 		return handler.NewTCPAssembler(h, o.Chan, o.Ip, uint16(o.Port), o.Resp)
 	default:
 		return o.createTcpStdAssembler(c, sender)
@@ -135,14 +147,6 @@ func (o *App) createTcpStdAssembler(c context.Context, printer handler.Sender) *
 	p := tcpassembly.NewStreamPool(f)
 	assembler := tcpassembly.NewAssembler(p)
 	return &handler.TcpStdAssembler{Assembler: assembler}
-}
-
-func (o *App) createConnectionHandler(sender handler.Sender) handler.ConnectionHandler {
-	if o.Mode == "fast" {
-		return &handler.ConnectionHandlerFast{Option: o.handlerOption, Sender: sender}
-	} else {
-		return &handler.ConnectionHandlerPair{Option: o.handlerOption, Sender: sender}
-	}
 }
 
 func (o *App) PostProcess() {
@@ -168,23 +172,8 @@ func (o *App) processDumpBody() {
 	}
 }
 
-func (o *App) createHandleOption() *handler.Option {
-	return &handler.Option{
-		Resp:     o.Resp,
-		Host:     o.Host,
-		Uri:      o.Uri,
-		Method:   o.Method,
-		Status:   o.Status,
-		Level:    o.Level,
-		DumpBody: o.DumpBody,
-		DumpMax:  o.dumpMax,
-		Force:    o.Force,
-		Curl:     o.Curl,
-	}
-}
-
 func (o App) Print() {
 	s := ss.Jsonify(o)
 	s, _ = jj.Set(s, "Idle", o.Idle.String())
-	fmt.Println("Options:", s)
+	log.Println("Options:", s)
 }

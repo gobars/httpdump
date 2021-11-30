@@ -118,7 +118,7 @@ func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
 			return
 		}
 
-		h.processResponse(&HttpRsp{Response: r}, []byte("empty"), h.option, now)
+		h.processResponse(true, &HttpRsp{Response: r}, []byte("empty"), h.option, now)
 	}
 }
 
@@ -138,6 +138,6 @@ func (f *Factory) runRequests(key *streamKey, buf *bufio.Reader) {
 			return
 		}
 
-		h.processRequest(&HttpReq{Request: r}, []byte("empty"), h.option, now)
+		h.processRequest(true, &HttpReq{Request: r}, []byte("empty"), h.option, now)
 	}
 }

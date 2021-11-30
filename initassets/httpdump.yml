@@ -1,37 +1,51 @@
 ---
 
-# Output level, url: only url, header: http headers, all: headers and text http body
+# level  string val all   usage: Output level, url: only url, header: http headers, all: headers and text http body 
 level: all
-# Interface name or pcap file. If not set, If is any, capture all interface traffics
+# input  string flag i  val any   usage: Interface name or pcap file. If not set, If is any, capture all interface traffics 
 input: any
-# Filter by ip, if either src or dst ip is matched, the packet will be processed
-ip: ""
-# Filter by port, if either source or target port is matched, the packet will be processed
-port: 5003
-# Customized bpf, if it is set, -ip -port will be suppressed
-bpf: ""
-# Channel size to buffer tcp packets
-chan: 10240
-# Output channel size to buffer tcp packets
-outChan: 40960
-# Filter by request host, using wildcard match(*, ?)
-host: ""
-# Filter by request url path, using wildcard match(*, ?)
-uri: ""
-# Filter by request method, multiple by comma
-method: ""
-# Verbose flag, available req/rsp/all for http replay dump
-verbose: ""
 
-# std/fast/pair
-mode: fast
-# File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode
-#  Or Relay http address, eg http://127.0.0.1:5002
+# 注意：ip 和 port 同时配置时，相当于设置了 bpf: tcp and ((dst host {ip} and dst port {port}) or (src host {ip} and src port {port}))
+#   ip   string  usage: Filter by ip, if either src or dst ip is matched, the packet will be processed 
+ip: ""
+#   port uint  usage: Filter by port, if either source or target port is matched, the packet will be processed 
+port: 5003
+
+#   bpf  string  usage: Customized bpf, if it is set, -ip -port will be suppressed 
+bpf: ""
+#
+#   chan    uint  usage: Channel size to buffer tcp packets
+chan: 10240
+#   outchan uint   usage: Output channel size to buffer tcp packets
+outchan: 40960
+#
+#   host    string  usage: Filter by request host, using wildcard match(*, ?) 
+#   uri     string  usage: Filter by request url path, using wildcard match(*, ?) 
+#   method  string  usage: Filter by request method, multiple by comma
+method: POST
+#   verbose string  usage: Verbose flag, available req/rsp/all for http replay dump 
+#
+#   resp    bool  usage: Print response or not 
+#   force   bool  usage: Force print unknown content-type http body even if it seems not to be text content 
+#   output   []string  usage: File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode\n Or Relay http address, eg http://127.0.0.1:5002 
 output:
   - stdout
-# Idle time to remove connection if no package received
+#  - log-yyyy-MM-dd.log:100M
+#  -  http://192.168.126.18:5003 
+
+#   idle time.Duration val 4m   usage: Idle time to remove connection if no package received
 idle: 4m
-# File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll
-file: ""
-# pprof address to listen on, not activate pprof if empty, eg. :6060
-# Pprof: ":6060"
+
+#https://github.com/influxdata/telegraf/blob/master/plugins/inputs/tail/tail.go
+## File names or a pattern to tail.
+## These accept standard unix glob matching rules, but with the addition of
+## ** as a  super asterisk . ie:
+##    /var/log/**.log   -> recursively find all .log files in /var/log
+##    /var/log/*/*.log  -> find all .log files with a parent dir in /var/log
+##    /var/log/apache.log  -> just tail the apache log file
+##    /var/log/log[!1-2]*  -> tail files without 1-2
+##    /var/log/log[^1-2]*  -> identical behavior as above
+#  file string  usage: File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll
+
+#  pprof string  usage: pprof address to listen on, not activate pprof if empty, eg. :6060
+#pprof: :6060
