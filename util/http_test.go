@@ -80,7 +80,7 @@ func TestMIMEHeadersStartPos(t *testing.T) {
 }
 
 func TestHasResponseTitle(t *testing.T) {
-	var m = map[string]bool{
+	m := map[string]bool{
 		"HTTP":                      false,
 		"":                          false,
 		"HTTP/1.1 100 Continue":     false,
@@ -101,7 +101,7 @@ func TestHasResponseTitle(t *testing.T) {
 }
 
 func TestHasRequestTitle(t *testing.T) {
-	var m = map[string]bool{
+	m := map[string]bool{
 		"POST /post HTTP/1.0\r\n": true,
 		"":                        false,
 		"POST /post HTTP/1.\r\n":  false,

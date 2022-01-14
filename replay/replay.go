@@ -161,7 +161,7 @@ func logTitle(title []byte, method, uri string) {
 			if u, _ := url.Parse(uri); u != nil {
 				uri = u.Path
 			}
-			log.Printf("Timestamp: %s Method: %s  URI: %   %s ", tim, method, uri, s)
+			log.Printf("Timestamp: %s Method: %s URI: %s Title: %s ", tim, method, uri, s)
 			return
 		}
 	}

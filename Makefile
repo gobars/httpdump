@@ -1,21 +1,30 @@
-.PHONY: init install
-all: init install
+.PHONY: test install
+all: test install
 
 app=$(notdir $(shell pwd))
+appVersion := 1.0.0
 goVersion := $(shell go version | sed 's/go version //'|sed 's/ /_/')
-buildTime := $(shell if hash gdate 2>/dev/null; then gdate --rfc-3339=seconds | sed 's/ /T/'; else date --rfc-3339=seconds | sed 's/ /T/'; fi)
+# e.g. 2021-10-28T11:49:52+0800
+buildTime := $(shell date +%FT%T%z)
 # https://git-scm.com/docs/git-rev-list#Documentation/git-rev-list.txt-emaIem
-gitCommit := $(shell git rev-list --oneline --format=format:'%h@%aI' --max-count=1 `git rev-parse HEAD` | tail -1)
+gitCommit := $(shell [ -f git.commit ] && cat git.commit || git rev-list --oneline --format=format:'%h@%aI' --max-count=1 `git rev-parse HEAD` | tail -1)
 #gitCommit := $(shell git rev-list -1 HEAD)
 # https://stackoverflow.com/a/47510909
 pkg := github.com/bingoohuang/gg/pkg/v
-appVersion := 1.3.4
+
 extldflags := -extldflags -static
 # https://ms2008.github.io/2018/10/08/golang-build-version/
 # https://github.com/kubermatic/kubeone/blob/master/Makefile
-flags1 = "-s -w -X $(pkg).buildTime=$(buildTime) -X $(pkg).appVersion=$(appVersion) -X $(pkg).gitCommit=$(gitCommit) -X $(pkg).goVersion=$(goVersion)"
-flags2 = "$(extldflags) -s -w -X $(pkg).buildTime=$(buildTime) -X $(pkg).appVersion=$(appVersion) -X $(pkg).gitCommit=$(gitCommit) -X $(pkg).goVersion=$(goVersion)"
+flags1 = -s -w -X $(pkg).BuildTime=$(buildTime) -X $(pkg).AppVersion=$(appVersion) -X $(pkg).GitCommit=$(gitCommit) -X $(pkg).GoVersion=$(goVersion)
+flags2 = ${extldflags} ${flags1}
+goinstall1 = go install -trimpath -ldflags='${flags1}' ./...
+goinstall2 = go install -trimpath -ldflags='${flags2}' ./...
 gobin := $(shell go env GOBIN)
+# try $GOPATN/bin if $gobin is empty
+gobin := $(if $(gobin),$(gobin),$(shell go env GOPATH)/bin)
+
+git.commit:
+	echo ${gitCommit} > git.commit
 
 tool:
 	go get github.com/securego/gosec/cmd/gosec
@@ -43,14 +52,13 @@ fmt:
 	gci -w -local github.com/daixiang0/gci
 
 install: init
-	go install -trimpath -ldflags=${flags1}  ./...
+	${goinstall1}
 	upx ${gobin}/${app}
-
 linux: init
-	GOOS=linux GOARCH=amd64 go install -trimpath -ldflags=${flags1}  ./...
+	GOOS=linux GOARCH=amd64 ${goinstall1}
 	upx ${gobin}/linux_amd64/${app}
-linux-arm64: init
-	GOOS=linux GOARCH=arm64 go install -trimpath -ldflags=${flags1}  ./...
+arm: init
+	GOOS=linux GOARCH=arm64 ${goinstall1}
 	upx ${gobin}/linux_arm64/${app}
 
 upx:

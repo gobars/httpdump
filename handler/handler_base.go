@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/bingoohuang/httpdump/util"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bingoohuang/httpdump/util"
 
 	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/httpdump/httpport"
@@ -83,7 +84,6 @@ func (h *HandlerBase) printHeader(header map[string][]string) {
 			h.writeFormat("%s: %s\r\n", name, value)
 		}
 	}
-
 }
 
 type Req interface {

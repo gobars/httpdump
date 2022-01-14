@@ -106,7 +106,7 @@ func SliceToString(buf []byte) string {
 }
 
 const (
-	//MinRequestCount GET / HTTP/1.1\r\n
+	// MinRequestCount GET / HTTP/1.1\r\n
 	MinRequestCount = 16
 	// MinResponseCount HTTP/1.1 200\r\n
 	MinResponseCount = 14

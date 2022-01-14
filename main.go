@@ -3,19 +3,20 @@ package main
 import (
 	"context"
 	"embed"
-	"github.com/bingoohuang/gg/pkg/flagparse"
-	"github.com/bingoohuang/gg/pkg/rest"
-	"github.com/bingoohuang/gg/pkg/rotate"
-	"github.com/bingoohuang/gg/pkg/v"
-	"github.com/bingoohuang/golog"
-	"github.com/bingoohuang/jj"
 	"log"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/bingoohuang/gg/pkg/ss"
+	"github.com/bingoohuang/gg/pkg/codec"
+	"github.com/bingoohuang/gg/pkg/flagparse"
+	"github.com/bingoohuang/gg/pkg/rest"
+	"github.com/bingoohuang/gg/pkg/rotate"
+	"github.com/bingoohuang/gg/pkg/v"
+	"github.com/bingoohuang/golog"
+	"github.com/bingoohuang/jj"
+
 	"github.com/bingoohuang/httpdump/handler"
 	"github.com/bingoohuang/httpdump/replay"
 	"github.com/bingoohuang/httpdump/util"
@@ -24,6 +25,7 @@ import (
 	"github.com/bingoohuang/gg/pkg/sigx"
 )
 
+// VersionInfo prints version information.
 func (App) VersionInfo() string { return v.Version() }
 
 func main() {
@@ -31,12 +33,12 @@ func main() {
 	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"),
 		flagparse.ProcessInit(&initAssets))
 
-	golog.SetupLogrus()
-	app.Print()
+	golog.Setup()
+	app.print()
 	app.handlerOption = &handler.Option{
 		Resp:     app.Resp,
 		Host:     app.Host,
-		Uri:      app.Uri,
+		Uri:      app.URI,
 		Method:   app.Method,
 		Status:   app.Status,
 		Level:    app.Level,
@@ -58,7 +60,7 @@ type App struct {
 	Level  string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
 	Input  string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 
-	Ip   string `usage:"Filter by ip, if either src or dst ip is matched, the packet will be processed"`
+	IP   string `usage:"Filter by ip, if either src or dst ip is matched, the packet will be processed"`
 	Port uint   `usage:"Filter by port, if either source or target port is matched, the packet will be processed"`
 	Bpf  string `usage:"Customized bpf, if it is set, -ip -port will be suppressed"`
 
@@ -66,7 +68,7 @@ type App struct {
 	OutChan uint `val:"40960" usage:"Output channel size to buffer tcp packets"`
 
 	Host    string `usage:"Filter by request host, using wildcard match(*, ?)"`
-	Uri     string `usage:"Filter by request url path, using wildcard match(*, ?)"`
+	URI     string `usage:"Filter by request url path, using wildcard match(*, ?)"`
 	Method  string `usage:"Filter by request method, multiple by comma"`
 	Verbose string `usage:"Verbose flag, available req/rsp/all for http replay dump"`
 
@@ -103,7 +105,7 @@ type App struct {
 
 func (o *App) run() {
 	c, _ := sigx.RegisterSignals(nil)
-	sigx.RegisterSignalProfile(c)
+	sigx.RegisterSignalProfile()
 	wg := &sync.WaitGroup{}
 
 	if len(o.Output) == 0 {
@@ -121,7 +123,7 @@ func (o *App) run() {
 	}
 
 	if o.File == "" {
-		packets, err := util.CreatePacketsChan(o.Input, o.Bpf, o.Host, o.Ip, o.Port)
+		packets, err := util.CreatePacketsChan(o.Input, o.Bpf, o.Host, o.IP, o.Port)
 		if err != nil {
 			panic(err)
 		}
@@ -136,19 +138,20 @@ func (o *App) createAssembler(c context.Context, sender handler.Sender) util.Ass
 	switch o.Mode {
 	case "fast":
 		h := &handler.ConnectionHandlerFast{Option: o.handlerOption, Sender: sender}
-		return handler.NewTCPAssembler(h, o.Chan, o.Ip, uint16(o.Port), o.Resp)
+		return handler.NewTCPAssembler(h, o.Chan, o.IP, uint16(o.Port), o.Resp)
 	default:
-		return o.createTcpStdAssembler(c, sender)
+		return o.createTCPStdAssembler(c, sender)
 	}
 }
 
-func (o *App) createTcpStdAssembler(c context.Context, printer handler.Sender) *handler.TcpStdAssembler {
+func (o *App) createTCPStdAssembler(c context.Context, printer handler.Sender) *handler.TcpStdAssembler {
 	f := handler.NewFactory(c, o.handlerOption, printer)
 	p := tcpassembly.NewStreamPool(f)
 	assembler := tcpassembly.NewAssembler(p)
 	return &handler.TcpStdAssembler{Assembler: assembler}
 }
 
+// PostProcess does some post processes.
 func (o *App) PostProcess() {
 	o.processDumpBody()
 }
@@ -163,8 +166,8 @@ func (o *App) processDumpBody() {
 		return
 	}
 
-	if v, err := strconv.Atoi(o.DumpBody[p+1:]); err == nil {
-		o.dumpMax = uint32(v)
+	if a, err := strconv.Atoi(o.DumpBody[p+1:]); err == nil {
+		o.dumpMax = uint32(a)
 	}
 
 	if o.DumpBody = o.DumpBody[:p]; o.DumpBody == "" {
@@ -172,8 +175,8 @@ func (o *App) processDumpBody() {
 	}
 }
 
-func (o App) Print() {
-	s := ss.Jsonify(o)
-	s, _ = jj.Set(s, "Idle", o.Idle.String())
-	log.Println("Options:", s)
+func (o App) print() {
+	s := codec.Json(o)
+	s, _ = jj.SetBytes(s, "Idle", o.Idle.String())
+	log.Printf("Options: %s", s)
 }

@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
-	"github.com/bingoohuang/gg/pkg/rest"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/rest"
 )
 
 // HTTPClient holds configurations for a single HTTP client
