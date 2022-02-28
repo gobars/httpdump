@@ -10,3 +10,4 @@ bbb*.http
 /httpdump.yml
 /log*
 /*.profile
+/git.commit

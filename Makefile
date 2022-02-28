@@ -1,4 +1,4 @@
-.PHONY: test install
+.PHONY: test install git.commit
 all: test install
 
 app=$(notdir $(shell pwd))
@@ -102,4 +102,4 @@ dockerinstall:
 targz:
 	find . -name ".DS_Store" -delete
 	find . -type f -name '\.*' -print
-	cd .. && rm -f ${app}.tar.gz && tar czvf ${app}.tar.gz --exclude .git --exclude .idea ${app}
+	cd .. && rm -f ${app}.tar.gz && tar czf ${app}.tar.gz --exclude .git --exclude .idea ${app}
