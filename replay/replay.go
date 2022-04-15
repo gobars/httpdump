@@ -174,18 +174,10 @@ func (c *Config) CreateHTTPClientConfig() *HTTPClientConfig {
 		return nil
 	}
 
-	if _, err := rest.FixURI(c.Replay); err != nil {
-		panic(err)
-	}
-	u, err := url.Parse(c.Replay)
-	if err != nil {
-		panic(err)
-	}
-
 	return &HTTPClientConfig{
 		Timeout:        c.Timeout,
 		InsecureVerify: c.InsecureVerify,
-		BaseURL:        u,
+		BaseURL:        rest.FixURI(c.Replay, rest.WithFatalErr(true)).Data,
 		Methods:        c.Method,
 		Verbose:        c.Verbose,
 	}
