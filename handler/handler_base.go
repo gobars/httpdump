@@ -134,7 +134,7 @@ func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 		}
 	}
 
-	h.handleError(io.EOF, c.lastReqTimestamp, "request")
+	h.handleError(io.EOF, c.lastReqTimestamp, "REQ")
 }
 
 // read http request/response stream, and do output
@@ -162,16 +162,16 @@ func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 		}
 	}
 
-	h.handleError(io.EOF, c.lastRspTimestamp, "response")
+	h.handleError(io.EOF, c.lastRspTimestamp, "RSP")
 }
 
 func (h *HandlerBase) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) error {
 	h.buffer = new(bytes.Buffer)
 	r, err := httpport.ReadRequest(bufio.NewReader(rb))
 	if err != nil {
-		h.handleError(err, c.lastReqTimestamp, "request")
+		h.handleError(err, c.lastReqTimestamp, "REQ")
 	} else {
-		h.processRequest(false, r, c.requestStream.GetLastUUID(), o, c.lastReqTimestamp)
+		h.processRequest(false, r, o, c.lastReqTimestamp)
 	}
 
 	return err
@@ -181,15 +181,15 @@ func (h *HandlerBase) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection
 	h.buffer = new(bytes.Buffer)
 	r, err := httpport.ReadResponse(bufio.NewReader(rb), nil)
 	if err != nil {
-		h.handleError(err, c.lastRspTimestamp, "response")
+		h.handleError(err, c.lastRspTimestamp, "RSP")
 	} else {
-		h.processResponse(false, r, c.responseStream.GetLastUUID(), o, c.lastRspTimestamp)
+		h.processResponse(false, r, o, c.lastRspTimestamp)
 	}
 
 	return err
 }
 
-func (h *HandlerBase) processRequest(discard bool, r Req, uuid []byte, o *Option, startTime time.Time) {
+func (h *HandlerBase) processRequest(discard bool, r Req, o *Option, startTime time.Time) {
 	if discard {
 		defer discardAll(r.GetBody())
 	}
@@ -199,11 +199,11 @@ func (h *HandlerBase) processRequest(discard bool, r Req, uuid []byte, o *Option
 	}
 
 	seq := reqCounter.Incr()
-	h.printRequest(r, startTime, uuid, seq)
+	h.printRequest(r, startTime, seq)
 	h.sender.Send(h.buffer.String(), true)
 }
 
-func (h *HandlerBase) processResponse(discard bool, r Rsp, uuid []byte, o *Option, endTime time.Time) {
+func (h *HandlerBase) processResponse(discard bool, r Rsp, o *Option, endTime time.Time) {
 	if discard {
 		defer discardAll(r.GetBody())
 	}
@@ -213,14 +213,14 @@ func (h *HandlerBase) processResponse(discard bool, r Rsp, uuid []byte, o *Optio
 	}
 
 	seq := rspCounter.Incr()
-	h.printResponse(r, endTime, uuid, seq)
+	h.printResponse(r, endTime, seq)
 	h.sender.Send(h.buffer.String(), true)
 }
 
 // print http request
-func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq int32) {
-	h.writeLine(fmt.Sprintf("\n### REQUEST #%d %s %s->%s %s",
-		seq, uuid, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
+func (h *HandlerBase) printRequest(r Req, startTime time.Time, seq int32) {
+	h.writeLine(fmt.Sprintf("\n### #%d REQ %s-%s %s",
+		seq, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
 
 	o := h.option
 	if ss.AnyOf(o.Level, LevelUrl) {
@@ -238,7 +238,7 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 	hasBody := contentLength != 0 && !ss.AnyOf(r.GetMethod(), "GET", "HEAD", "TRACE", "OPTIONS")
 
 	if hasBody && o.CanDump() {
-		fn := bodyFileName(o.DumpBody, uuid, seq, "request", startTime)
+		fn := bodyFileName(o.DumpBody, seq, "REQ", startTime)
 		if n, err := DumpBody(r.GetBody(), fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
 		} else if n > 0 {
@@ -260,10 +260,10 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, uuid []byte, seq 
 }
 
 // print http response
-func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, uuid []byte, seq int32) {
+func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, seq int32) {
 	defer discardAll(r.GetBody())
-	h.writeLine(fmt.Sprintf("\n### RESPONSE #%d %s %s<-%s %s",
-		seq, uuid, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano)))
+	h.writeLine(fmt.Sprintf("\n### #%d RSP %s-%s %s",
+		seq, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano)))
 
 	h.writeLine(r.GetStatusLine())
 	o := h.option
@@ -279,7 +279,7 @@ func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, uuid []byte, seq i
 	hasBody := contentLength > 0 && r.GetStatusCode() != 304 && r.GetStatusCode() != 204
 
 	if hasBody && o.CanDump() {
-		fn := bodyFileName(o.DumpBody, uuid, seq, "response", endTime)
+		fn := bodyFileName(o.DumpBody, seq, "RSP", endTime)
 		if n, err := DumpBody(r.GetBody(), fn, &o.dumpNum); err != nil {
 			h.writeLine("dump to file failed:", err)
 		} else if n > 0 {
@@ -377,15 +377,9 @@ func discardAll(r io.Reader) (discarded int) {
 	return tcpreader.DiscardBytesToEOF(r)
 }
 
-func bodyFileName(prefix string, uuid []byte, seq int32, req string, t time.Time) string {
+func bodyFileName(prefix string, seq int32, req string, t time.Time) string {
 	timeStr := t.Format("20060102")
-	// parse id from uuid like id:a4af2382c0a6df1c6fb4280a,Seq:1874077706,Ack:2080684195
-	if f := bytes.IndexRune(uuid, ':'); f >= 0 {
-		if c := bytes.IndexRune(uuid[f:], ','); c >= 0 {
-			uuid = uuid[f+1 : f+c]
-		}
-	}
-	return fmt.Sprintf("%s.%s.%d.%s.%s", prefix, timeStr, seq, uuid, req)
+	return fmt.Sprintf("%s.%s.%d.%s", prefix, timeStr, seq, req)
 }
 
 func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse string) {

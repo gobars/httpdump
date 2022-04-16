@@ -48,7 +48,7 @@ func (k streamKey) Src() string { return fmt.Sprintf("%v:%v", k.net.Src(), k.tcp
 func (k streamKey) Dst() string { return fmt.Sprintf("%v:%v", k.net.Dst(), k.tcp.Dst()) }
 
 func (k streamKey) String() string { // like {192.168.217.54:53933} -> {192.168.126.182:9090}
-	return fmt.Sprintf("{%v:%v} -> {%v:%v}", k.net.Src(), k.tcp.Src(), k.net.Dst(), k.tcp.Dst())
+	return fmt.Sprintf("%v:%v -> %v:%v", k.net.Src(), k.tcp.Src(), k.net.Dst(), k.tcp.Dst())
 }
 
 var _ Key = (*streamKey)(nil)
@@ -86,8 +86,10 @@ func (h HttpRsp) GetStatusCode() int      { return h.Response.StatusCode }
 
 func MapKeys(header http.Header) []string {
 	keys := make([]string, 0, len(header))
-	for k := range header {
-		keys = append(keys, k)
+	for k, v := range header {
+		for _, w := range v {
+			keys = append(keys, k+": "+w)
+		}
 	}
 
 	return keys
@@ -110,15 +112,15 @@ func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
 	h := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: f.option, sender: f.sender}
 
 	for {
-		now := time.Now()
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
 		r, err := http.ReadResponse(buf, nil)
+		now := time.Now()
 		if err != nil {
-			h.handleError(err, now, "response")
+			h.handleError(err, now, "RSP")
 			return
 		}
 
-		h.processResponse(true, &HttpRsp{Response: r}, []byte("empty"), h.option, now)
+		h.processResponse(true, &HttpRsp{Response: r}, h.option, now)
 	}
 }
 
@@ -130,14 +132,14 @@ func (f *Factory) runRequests(key *streamKey, buf *bufio.Reader) {
 	h := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: f.option, sender: f.sender}
 
 	for {
-		now := time.Now()
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
 		r, err := http.ReadRequest(buf)
+		now := time.Now()
 		if err != nil {
-			h.handleError(err, now, "request")
+			h.handleError(err, now, "REQ")
 			return
 		}
 
-		h.processRequest(true, &HttpReq{Request: r}, []byte("empty"), h.option, now)
+		h.processRequest(true, &HttpReq{Request: r}, h.option, now)
 	}
 }

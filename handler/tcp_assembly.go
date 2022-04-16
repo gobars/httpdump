@@ -237,10 +237,8 @@ type NetworkStream struct {
 
 	src, dst  Endpoint
 	isRequest bool
-	LastUUID  []byte
 }
 
-func (s *NetworkStream) GetLastUUID() []byte   { return s.LastUUID }
 func (s *NetworkStream) SetClosed(closed bool) { s.closed = closed }
 func (s *NetworkStream) IsClosed() bool        { return s.closed }
 
@@ -252,7 +250,6 @@ type Stream interface {
 	Finish()
 	Packets() chan *layers.TCP
 	Close() error
-	GetLastUUID() []byte
 	DiscardAll()
 }
 

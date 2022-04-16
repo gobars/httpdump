@@ -55,7 +55,7 @@ type SendResponse struct {
 	Cost         time.Duration
 }
 
-// Send sends an http request using client create by NewHTTPClient
+// Send sends a http request using client create by NewHTTPClient
 func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(data)))
 	if err != nil {
