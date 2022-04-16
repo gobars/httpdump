@@ -13,6 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bingoohuang/gg/pkg/iox"
+	"go.uber.org/multierr"
+
 	"github.com/bingoohuang/httpdump/util"
 
 	"github.com/bingoohuang/gg/pkg/ss"
@@ -44,7 +47,7 @@ func (ck *ConnectionKey) Dst() string { return ck.dst.String() }
 
 type Sender interface {
 	Send(msg string, countDiscards bool)
-	Close() error
+	io.Closer
 }
 
 type Senders []Sender
@@ -55,30 +58,33 @@ func (ss Senders) Send(msg string, countDiscards bool) {
 	}
 }
 
-func (ss Senders) Close() error {
+func (ss Senders) Close() (err error) {
 	for _, s := range ss {
-		s.Close()
+		err = multierr.Append(err, s.Close())
 	}
 
-	return nil
+	return err
 }
 
-type HandlerBase struct {
+type Base struct {
 	key    Key
 	buffer *bytes.Buffer
 	option *Option
 	sender Sender
+
+	reqCounter Counter
+	rspCounter Counter
 }
 
-func (h *HandlerBase) writeFormat(f string, a ...interface{}) { fmt.Fprintf(h.buffer, f, a...) }
-func (h *HandlerBase) write(a ...interface{})                 { fmt.Fprint(h.buffer, a...) }
-func (h *HandlerBase) writeBytes(p []byte)                    { h.buffer.Write(p) }
-func (h *HandlerBase) writeLine(a ...interface{}) {
-	fmt.Fprint(h.buffer, a...)
-	fmt.Fprintf(h.buffer, "\r\n")
+func (h *Base) writeFormat(f string, a ...interface{}) { _, _ = fmt.Fprintf(h.buffer, f, a...) }
+func (h *Base) write(a ...interface{})                 { _, _ = fmt.Fprint(h.buffer, a...) }
+func (h *Base) writeBytes(p []byte)                    { h.buffer.Write(p) }
+func (h *Base) writeLine(a ...interface{}) {
+	_, _ = fmt.Fprint(h.buffer, a...)
+	_, _ = fmt.Fprintf(h.buffer, "\r\n")
 }
 
-func (h *HandlerBase) printHeader(header map[string][]string) {
+func (h *Base) printHeader(header map[string][]string) {
 	for name, values := range header {
 		for _, value := range values {
 			h.writeFormat("%s: %s\r\n", name, value)
@@ -106,15 +112,10 @@ type Rsp interface {
 	GetStatusCode() int
 }
 
-var (
-	reqCounter = Counter{}
-	rspCounter = Counter{}
-)
-
 // read http request/response stream, and do output
-func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
+func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
-	defer c.requestStream.Close()
+	defer iox.Close(c.requestStream)
 
 	rb := &bytes.Buffer{}
 	var method string
@@ -138,9 +139,9 @@ func (h *HandlerBase) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 }
 
 // read http request/response stream, and do output
-func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
+func (h *Base) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
-	defer c.responseStream.Close()
+	defer iox.Close(c.responseStream)
 	if !h.option.Resp {
 		c.responseStream.DiscardAll()
 		return
@@ -165,60 +166,48 @@ func (h *HandlerBase) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 	h.handleError(io.EOF, c.lastRspTimestamp, "RSP")
 }
 
-func (h *HandlerBase) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) error {
+func (h *Base) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) {
 	h.buffer = new(bytes.Buffer)
-	r, err := httpport.ReadRequest(bufio.NewReader(rb))
-	if err != nil {
+	if r, err := httpport.ReadRequest(bufio.NewReader(rb)); err != nil {
 		h.handleError(err, c.lastReqTimestamp, "REQ")
 	} else {
 		h.processRequest(false, r, o, c.lastReqTimestamp)
 	}
-
-	return err
 }
 
-func (h *HandlerBase) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection) error {
+func (h *Base) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection) {
 	h.buffer = new(bytes.Buffer)
-	r, err := httpport.ReadResponse(bufio.NewReader(rb), nil)
-	if err != nil {
+	if r, err := httpport.ReadResponse(bufio.NewReader(rb), nil); err != nil {
 		h.handleError(err, c.lastRspTimestamp, "RSP")
 	} else {
 		h.processResponse(false, r, o, c.lastRspTimestamp)
 	}
-
-	return err
 }
 
-func (h *HandlerBase) processRequest(discard bool, r Req, o *Option, startTime time.Time) {
+func (h *Base) processRequest(discard bool, r Req, o *Option, startTime time.Time) {
 	if discard {
 		defer discardAll(r.GetBody())
 	}
 
-	if !o.Permits(r) {
-		return
+	if o.Permits(r) {
+		h.printRequest(r, startTime, h.reqCounter.Incr())
+		h.sender.Send(h.buffer.String(), true)
 	}
-
-	seq := reqCounter.Incr()
-	h.printRequest(r, startTime, seq)
-	h.sender.Send(h.buffer.String(), true)
 }
 
-func (h *HandlerBase) processResponse(discard bool, r Rsp, o *Option, endTime time.Time) {
+func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time) {
 	if discard {
 		defer discardAll(r.GetBody())
 	}
 
-	if filtered := !o.Status.Contains(r.GetStatusCode()); filtered {
-		return
+	if o.Status.Contains(r.GetStatusCode()) {
+		h.printResponse(r, endTime, h.rspCounter.Incr())
+		h.sender.Send(h.buffer.String(), true)
 	}
-
-	seq := rspCounter.Incr()
-	h.printResponse(r, endTime, seq)
-	h.sender.Send(h.buffer.String(), true)
 }
 
 // print http request
-func (h *HandlerBase) printRequest(r Req, startTime time.Time, seq int32) {
+func (h *Base) printRequest(r Req, startTime time.Time, seq int32) {
 	h.writeLine(fmt.Sprintf("\n### #%d REQ %s-%s %s",
 		seq, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
 
@@ -260,7 +249,7 @@ func (h *HandlerBase) printRequest(r Req, startTime time.Time, seq int32) {
 }
 
 // print http response
-func (h *HandlerBase) printResponse(r Rsp, endTime time.Time, seq int32) {
+func (h *Base) printResponse(r Rsp, endTime time.Time, seq int32) {
 	defer discardAll(r.GetBody())
 	h.writeLine(fmt.Sprintf("\n### #%d RSP %s-%s %s",
 		seq, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano)))
@@ -314,11 +303,11 @@ func parseContentLength(cl int64, header http.Header) int64 {
 }
 
 // print http request/response body
-func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
+func (h *Base) printBody(header http.Header, reader io.ReadCloser) {
 	// deal with content encoding such as gzip, deflate
 	nr, decompressed := util.TryDecompress(header, reader)
 	if decompressed {
-		defer nr.Close()
+		defer iox.Close(nr)
 	}
 
 	// check mime type and charset
@@ -358,7 +347,7 @@ func (h *HandlerBase) printBody(header http.Header, reader io.ReadCloser) {
 	}
 }
 
-func (h *HandlerBase) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
+func (h *Base) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
 	if h.option.Force && !isBinary {
 		data, err := ioutil.ReadAll(reader)
 		if err != nil {
@@ -382,7 +371,7 @@ func bodyFileName(prefix string, seq int32, req string, t time.Time) string {
 	return fmt.Sprintf("%s.%s.%d.%s", prefix, timeStr, seq, req)
 }
 
-func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse string) {
+func (h *Base) handleError(err error, t time.Time, requestOrResponse string) {
 	k := h.key
 	tim := t.Format(time.RFC3339Nano)
 	if IsEOF(err) {
@@ -391,7 +380,7 @@ func (h *HandlerBase) handleError(err error, t time.Time, requestOrResponse stri
 	} else {
 		msg := fmt.Sprintf("\n### ERR %s %s->%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err)
 		h.sender.Send(msg, false)
-		fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
+		_, _ = fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
 	}
 }
 
@@ -404,11 +393,11 @@ func DumpBody(r io.Reader, path string, u *uint32) (int64, error) {
 
 	n, err := io.Copy(f, r)
 	if n <= 0 { // nothing to write, remove file
-		os.Remove(path)
+		_ = os.Remove(path)
 	} else {
 		atomic.AddUint32(u, 1)
 	}
-	f.Close()
+	iox.Close(f)
 	return n, err
 }
 

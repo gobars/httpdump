@@ -14,13 +14,13 @@ type ConnectionHandlerFast struct {
 
 func (h *ConnectionHandlerFast) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
 	key := &ConnectionKey{src: src, dst: dst}
-	reqHandler := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.Option, sender: h.Sender}
+	reqHandler := &Base{key: key, buffer: new(bytes.Buffer), option: h.Option, sender: h.Sender}
 	h.wg.Add(1)
 	go reqHandler.handleRequest(&h.wg, c)
 
 	if h.Option.Resp {
 		h.wg.Add(1)
-		rspHandler := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: h.Option, sender: h.Sender}
+		rspHandler := &Base{key: key, buffer: new(bytes.Buffer), option: h.Option, sender: h.Sender}
 		go rspHandler.handleResponse(&h.wg, c)
 	}
 }

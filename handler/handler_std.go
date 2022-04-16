@@ -109,7 +109,7 @@ func (h HttpReq) GetHeader() map[string][]string { return h.Header }
 func (h HttpReq) GetContentLength() int64        { return h.ContentLength }
 
 func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
-	h := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: f.option, sender: f.sender}
+	h := &Base{key: key, buffer: new(bytes.Buffer), option: f.option, sender: f.sender}
 
 	for {
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
@@ -129,7 +129,7 @@ func IsEOF(e error) bool {
 }
 
 func (f *Factory) runRequests(key *streamKey, buf *bufio.Reader) {
-	h := &HandlerBase{key: key, buffer: new(bytes.Buffer), option: f.option, sender: f.sender}
+	h := &Base{key: key, buffer: new(bytes.Buffer), option: f.option, sender: f.sender}
 
 	for {
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
