@@ -3,11 +3,16 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/netx/freeport"
+	"github.com/bingoohuang/gg/pkg/osx"
 
 	"github.com/bingoohuang/gg/pkg/codec"
 	"github.com/bingoohuang/gg/pkg/flagparse"
@@ -74,6 +79,8 @@ type App struct {
 
 	Status util.IntSetFlag `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 
+	Web     bool `usage:"Start web server for HTTP requests and responses event"`
+	WebPort int  `usage:"Web server port if web is enable"`
 	Resp    bool `usage:"Print response or not"`
 	Force   bool `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl    bool `usage:"Output an equivalent curl command for each http request"`
@@ -120,6 +127,28 @@ func (o *App) run() {
 			senders = append(senders, rotate.NewQueueWriter(out,
 				rotate.WithContext(c), rotate.WithOutChanSize(int(o.OutChan)), rotate.WithAppend(true)))
 		}
+	}
+
+	if o.Web {
+		var port int
+		if o.WebPort > 0 {
+			port = freeport.PortStart(o.WebPort)
+		} else {
+			port = freeport.Port()
+		}
+
+		stream := NewSSEStream()
+		http.HandleFunc("/", SSEWebHandler)
+		http.HandleFunc("/sse", SSEHandler(stream))
+		senders = append(senders, &SSESender{stream: stream})
+		log.Printf("start to listen on %d", port)
+		go func() {
+			addr := fmt.Sprintf(":%d", port)
+			if err := http.ListenAndServe(addr, nil); err != nil {
+				log.Printf("listen and serve failed: %v", err)
+			}
+		}()
+		go osx.OpenBrowser(fmt.Sprintf("http://127.0.0.1:%d", port))
 	}
 
 	if o.File == "" {

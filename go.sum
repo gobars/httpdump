@@ -1,6 +1,8 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 gitee.com/chunanyong/dm v1.8.4/go.mod h1:EPRJnuPFgbyOFgJ0TRYCTGzhq+ZT4wdyaj/GW/LLcNg=
+github.com/AndrewBurian/eventsource v1.1.0 h1:Z23P7JBJSIN3MeRq05R3M0rbapcxnbIgwczPi22cZ8g=
+github.com/AndrewBurian/eventsource v1.1.0/go.mod h1:eO0e4MxwjJKxtLh/YT8as+VkGNyeamjjia3dYtveibY=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/CAFxX/gcnotifier v0.0.0-20190112062741-224a280d589d/go.mod h1:Rn2zM2MnHze07LwkneP48TWt6UiZhzQTwCvw6djVGfE=
 github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=

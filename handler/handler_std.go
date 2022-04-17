@@ -47,8 +47,8 @@ type streamKey struct {
 func (k streamKey) Src() string { return fmt.Sprintf("%v:%v", k.net.Src(), k.tcp.Src()) }
 func (k streamKey) Dst() string { return fmt.Sprintf("%v:%v", k.net.Dst(), k.tcp.Dst()) }
 
-func (k streamKey) String() string { // like {192.168.217.54:53933} -> {192.168.126.182:9090}
-	return fmt.Sprintf("%v:%v -> %v:%v", k.net.Src(), k.tcp.Src(), k.net.Dst(), k.tcp.Dst())
+func (k streamKey) String() string { // like 192.168.217.54:53933-192.168.126.182:9090
+	return fmt.Sprintf("%v:%v-%v:%v", k.net.Src(), k.tcp.Src(), k.net.Dst(), k.tcp.Dst())
 }
 
 var _ Key = (*streamKey)(nil)

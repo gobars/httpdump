@@ -33,7 +33,7 @@ func ParseRequestTitle(payload []byte) (method, path string, ok bool) {
 	if pos == -1 {
 		return method, "", false
 	}
-	path = s[len(method)+1 : pos]
+	path = s[len(method)+1 : len(method)+1+pos]
 	major, minor, ok := http.ParseHTTPVersion(s[pos+len(method)+2 : titleLen])
 	return method, path, ok && major == 1 && (minor == 0 || minor == 1)
 }

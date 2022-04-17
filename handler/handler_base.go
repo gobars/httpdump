@@ -263,6 +263,7 @@ func (h *Base) printResponse(r Rsp, endTime time.Time, seq int32) {
 	for _, header := range r.GetRawHeaders() {
 		h.writeLine(header)
 	}
+	h.writeBytes([]byte("\r\n"))
 
 	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
 	hasBody := contentLength > 0 && r.GetStatusCode() != 304 && r.GetStatusCode() != 204
@@ -375,10 +376,10 @@ func (h *Base) handleError(err error, t time.Time, requestOrResponse string) {
 	k := h.key
 	tim := t.Format(time.RFC3339Nano)
 	if IsEOF(err) {
-		msg := fmt.Sprintf("\n### EOF %s %s->%s %s", requestOrResponse, k.Src(), k.Dst(), tim)
+		msg := fmt.Sprintf("\n### EOF %s %s-%s %s", requestOrResponse, k.Src(), k.Dst(), tim)
 		h.sender.Send(msg, false)
 	} else {
-		msg := fmt.Sprintf("\n### ERR %s %s->%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err)
+		msg := fmt.Sprintf("\n### ERR %s %s-%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err)
 		h.sender.Send(msg, false)
 		_, _ = fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
 	}
