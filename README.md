@@ -23,7 +23,7 @@ Build httpdump requires libpcap-dev and cgo enabled.
 ## Cheatsheet
 
 1. 监听发往 192.168.1.1:80 的 HTTP POST 请求及响应，并且写到日志文件 `log-yyyy-MM-dd.http` 中，按 100m 滚动(例如 log-yyyy-MM-dd_00001.http)，同时往 192.168.1.2:80 复制。
-   
+
 `nohup httpdump -bpf "tcp and ((dst host 192.168.1.1 and port 80) || (src host 192.168.1.1 and src port 80))" -method POST -output log-yyyy-MM-dd.http:100m -output 192.168.1.2:80 2>&1 >> httpdump.nohup &`
 
 ## Usage
@@ -31,39 +31,36 @@ Build httpdump requires libpcap-dev and cgo enabled.
 httpdump can read from pcap file, or capture data from network interfaces. Usage:
 
 ```sh
+$ httpdump -h
 Usage of httpdump:
-  -chan uint
-        Channel size to buffer tcp packets. (default 10240)
-  -curl
-        Output an equivalent curl command for each http request
-  -dump-body
-        Dump http request/response body to file
-  -fast
-        Fast mode, process request and response separately
-  -force
-        Force print unknown content-type http body even if it seems not to be text content
-  -host string
-        Filter by request host, using wildcard match(*, ?)
-  -i string
-        Interface name or pcap file. If not set, If is any, capture all interface traffics (default "any")
-  -idle duration
-        Idle time to remove connection if no package received (default 4m0s)
-  -ip string
-        Filter by ip, if either source or target ip is matched, the packet will be processed
-  -level string
-        Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body) (default "header")
-  -method string
-        Filter by request method, multiple by comma
-  -output string
-        Write result to file [output] instead of stdout
-  -port uint
-        Filter by port, if either source or target port is matched, the packet will be processed.
-  -resp
-        Print response or not
-  -status value
-        Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400
-  -uri string
-        Filter by request url path, using wildcard match(*, ?)
+  -bpf string	Customized bpf, if it is set, -ip -port will be suppressed
+  -c string	yaml config filepath
+  -chan uint	Channel size to buffer tcp packets (default 10240)
+  -curl	Output an equivalent curl command for each http request
+  -dump-body string	Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)
+  -f string	File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll
+  -fla9 string	Flags config file, a scaffold one will created when it does not exist.
+  -force	Force print unknown content-type http body even if it seems not to be text content
+  -host string	Filter by request host, using wildcard match(*, ?)
+  -i string	Interface name or pcap file. If not set, If is any, capture all interface traffics (default "any")
+  -idle duration	Idle time to remove connection if no package received (default 4m0s)
+  -init	init example httpdump.yml/ctl and then exit
+  -ip string	Filter by ip, if either src or dst ip is matched, the packet will be processed
+  -level string	Output level, url: only url, header: http headers, all: headers and text http body (default "all")
+  -method string	Filter by request method, multiple by comma
+  -mode string	std/fast (default "fast")
+  -out-chan uint	Output channel size to buffer tcp packets (default 40960)
+  -output value	File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode
+ Or Relay http address, eg http://127.0.0.1:5002
+  -port uint	Filter by port, if either source or target port is matched, the packet will be processed
+  -pprof string	pprof address to listen on, not activate pprof if empty, eg. :6060
+  -resp	Print response or not
+  -status value	Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400
+  -uri string	Filter by request url path, using wildcard match(*, ?)
+  -v	Print version info and exit
+  -verbose string	Verbose flag, available req/rsp/all for http replay dump
+  -web	Start web server for HTTP requests and responses event
+  -web-port int	Web server port if web is enable
 ```
 
 ## Samples
