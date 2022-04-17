@@ -17,7 +17,7 @@
 
 <body>
 <!-- https://bulma.io/documentation/elements/table/ -->
-<table class="table">
+<table class="table is-striped is-fullwidth is-bordered ">
     <thead>
     <tr>
         <th title="Sequence">#</th>
@@ -55,21 +55,6 @@
 </div>
 
 <script type="text/javascript">
-    var lastSelectedTr = null
-
-    function showPayload(id) {
-        let tr = document.getElementById(id)
-        if (lastSelectedTr) {
-            lastSelectedTr.classList.remove('is-selected')
-            lastSelectedTr = null
-        }
-        tr.classList.add('is-selected');
-        lastSelectedTr = tr
-        document.getElementById("reqPayload").innerHTML = tr.cells[10].innerHTML
-        document.getElementById("rspPayload").innerHTML = tr.cells[11].innerHTML
-        openModal()
-    }
-
     const source = new EventSource("sse");
     source.onmessage = function (e) {
         let j = JSON.parse(e.data)
@@ -78,8 +63,10 @@
         }
 
         let id = j.Connection + '.' + j.Seq
-        if (j.Req) {
-            let tr = document.getElementById("tbody").insertRow(0);
+        let tr = document.getElementById(id)
+        let trExists = false
+        if (!tr) {
+            tr = document.getElementById("tbody").insertRow(0);
             tr.id = id
             tr.innerHTML =
                 /* 0 */'<td><a href="javascript:showPayload(\'' + id + '\')">' + j.Seq + "</a></td>" +
@@ -90,22 +77,46 @@
                 /* 5 */"<td>" + j.ContentType + "</td>" +
                 /* 6 */"<td>" + j.Status + "</td>" +
                 /* 7 Time */"<td></td>" +
-                /* 8 */"<td>" + j.ReqSize + "</td>" +
-                /* 9 */"<td>" + j.RspSize + "</td>" +
-                /* 10 */'<th style="display:none;"><pre>' + j.Payload + '</pre></th>' +
-                /* 11 */'<th style="display:none;">><pre></pre></th>' +
-                /* 12 */'<th style="display:none;">' + j.Timestamp + '</th>' +
-                /* 13 */'<th style="display:none;"></th>'
+                /* 8 ReqSize */"<td></td>" +
+                /* 9 RspSize */"<td></td>" +
+                /* 10 ReqPayload */'<th style="display:none;"></th>' +
+                /* 11 RspPayload*/'<th style="display:none;"></th>' +
+                /* 12 ReqTimestamp*/'<th style="display:none;"></th>' +
+                /* 13 RspTimestamp*/'<th style="display:none;"></th>'
+            tr.addEventListener('click', function () {
+                if (tr.classList.contains('is-selected')) {
+                    tr.classList.remove('is-selected')
+                } else {
+                    tr.classList.add('is-selected');
+                }
+            })
+            tr.cells[0].addEventListener('click', function (event) {
+                event.stopPropagation()
+
+                document.getElementById("reqPayload").innerHTML = tr.cells[10].innerHTML
+                document.getElementById("rspPayload").innerHTML = tr.cells[11].innerHTML
+                openModal()
+            })
+        } else {
+            trExists = true
+        }
+        if (j.Req) {
+            tr.cells[2].innerText = j.Method
+            tr.cells[3].innerText = j.Host
+            tr.cells[4].innerText = j.Path
+            tr.cells[8].innerText = j.ReqSize
+            tr.cells[10].innerHTML = '<pre>' + j.Payload + '</pre>'
+            tr.cells[12].innerText = j.Timestamp
         } else if (j.Rsp) {
-            let tr = document.getElementById(id);
-            if (tr) {
-                tr.cells[5].innerText = j.ContentType
-                tr.cells[6].innerText = j.Status
-                tr.cells[7].innerText = (Date.parse(j.Timestamp) - Date.parse(tr.cells[12].innerText)) + ' ms'
-                tr.cells[9].innerText = j.RspSize
-                tr.cells[11].innerHTML = '<pre>' + j.Payload + '</pre>'
-                tr.cells[13].innerText = j.Timestamp
-            }
+            tr.cells[5].innerText = j.ContentType
+            tr.cells[6].innerText = j.Status
+            tr.cells[9].innerText = j.RspSize
+            tr.cells[11].innerHTML = '<pre>' + j.Payload + '</pre>'
+            tr.cells[13].innerText = j.Timestamp
+        }
+
+        if (trExists) {
+            tr.cells[7].innerText = (Date.parse(j.Timestamp) - Date.parse(tr.cells[12].innerText)) + ' ms'
         }
     };
     source.onerror = function (err) {
