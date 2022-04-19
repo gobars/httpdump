@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,12 +80,13 @@ type App struct {
 
 	Status util.IntSetFlag `usage:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
 
-	Web     bool `usage:"Start web server for HTTP requests and responses event"`
-	WebPort int  `usage:"Web server port if web is enable"`
-	Resp    bool `usage:"Print response or not"`
-	Force   bool `usage:"Force print unknown content-type http body even if it seems not to be text content"`
-	Curl    bool `usage:"Output an equivalent curl command for each http request"`
-	Version bool `flag:"v" usage:"Print version info and exit"`
+	Web        bool   `usage:"Start web server for HTTP requests and responses event"`
+	WebPort    int    `usage:"Web server port if web is enable"`
+	WebContext string `usage:"Web server context path if web is enable"`
+	Resp       bool   `usage:"Print response or not"`
+	Force      bool   `usage:"Force print unknown content-type http body even if it seems not to be text content"`
+	Curl       bool   `usage:"Output an equivalent curl command for each http request"`
+	Version    bool   `flag:"v" usage:"Print version info and exit"`
 
 	DumpBody string   `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
 	Mode     string   `val:"fast" usage:"std/fast"`
@@ -138,8 +140,8 @@ func (o *App) run() {
 		}
 
 		stream := NewSSEStream()
-		http.HandleFunc("/", SSEWebHandler)
-		http.HandleFunc("/sse", SSEHandler(stream))
+		http.HandleFunc(path.Join("/", o.WebContext), SSEWebHandler)
+		http.HandleFunc(path.Join("/sse", o.WebContext), SSEHandler(stream))
 		senders = append(senders, &SSESender{stream: stream})
 		log.Printf("start to listen on %d", port)
 		go func() {
