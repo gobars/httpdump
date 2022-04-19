@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseRequestTitle(t *testing.T) {
-	payload := []byte("GET /httplive/echo.json HTTP/1.1\r\nX-Forwarded-For: 123.117.126.249\r\nAccept-Encoding: gzip\r\nHost: 127.0.0.1:5003\r\nUser-Agent: gurl/1.0.0\r\nAccept: application/json\r\nContent-Type: application/json\r\nGurl-Date: Tue, 19 Apr 2022 06:25:30 GMT\r\nGurl-N: 1")
+	payload := []byte("GET /httplive/echo.json HTTP/1.1\r\nHost: 7.d5k.co:5003\r\nUser-Agent: gurl/1.0.0\r\nAccept: application/json\r\nAccept-Encoding: gzip, deflate\r\nContent-Type: application/json\r\nGurl-Date: Tue, 19 Apr 2022 07:21:36 GMT\r\n\r\n")
 	method, yes := ParseRequestTitle(payload)
 	assert.True(t, yes)
 	assert.Equal(t, "GET", method)

@@ -123,8 +123,9 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 
 	for p := range c.requestStream.Packets() {
 		// 请求开头行解析成功，是一个新的请求
-		log.Printf("[PRE]request payload: %s", p.Payload)
-		if m, yes := util.ParseRequestTitle(p.Payload); yes {
+		m, yes := util.ParseRequestTitle(p.Payload)
+		log.Printf("ParseRequestTitle: method: %s yes: %t payload: %q", m, yes, string(p.Payload))
+		if yes {
 			rb.Reset() // 清空缓冲
 			method = m // 记录请求方法
 		}
