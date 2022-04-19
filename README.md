@@ -180,6 +180,6 @@ output:
 
 ## Web UI
 
-`sudo httpdump -port 5003 -resp -web`
+`sudo httpdump -port 5003 -resp -web -web-port 6003 -web-context httpdump`
 
 ![img.png](_doc/img.png)
