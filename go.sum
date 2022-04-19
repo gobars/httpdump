@@ -42,8 +42,8 @@ github.com/bingoohuang/easyjson v0.0.0-20211118132814-5606aa48c508 h1:Ew6KVZFgaX
 github.com/bingoohuang/gg v0.0.0-20220415071740-064245c53d42 h1:7qJPDQh7ObTLzGmi1ns51CA3ffLlfWdcwunXYCLxrPU=
 github.com/bingoohuang/gg v0.0.0-20220415071740-064245c53d42/go.mod h1:tltYEITxWTTXTTAqJNBK62x6Eg1iThhAnez8CxcQxQo=
 github.com/bingoohuang/golog v0.0.0-20211112131923-101b7e1b3d4c/go.mod h1:atiVUeYe0Rsi80P0eDEF8lpf9qvt/w/qpil8PpNGYvw=
-github.com/bingoohuang/golog v0.0.0-20220415064839-388a4634ee78 h1:1IoVUvxX9CCfQLrW7bVZ/D1Hj8p1o2tGcGgqvt3bKPo=
-github.com/bingoohuang/golog v0.0.0-20220415064839-388a4634ee78/go.mod h1:eG/trxk0nks1UTikeTcuupJury4OzyzF+iQ13KNrQH0=
+github.com/bingoohuang/golog v0.0.0-20220419071623-16dcc2aaef54 h1:AzdMEtYkSCx+QqoFK2O1OV1mCY64VZi4GVdCAEW/s0Q=
+github.com/bingoohuang/golog v0.0.0-20220419071623-16dcc2aaef54/go.mod h1:eG/trxk0nks1UTikeTcuupJury4OzyzF+iQ13KNrQH0=
 github.com/bingoohuang/jj v0.0.0-20220412145720-b1b21edc309f h1:yljJdpH5nL2RjGADXx46ShWNBw7eOu3tjFNqbSUtbjA=
 github.com/bingoohuang/jj v0.0.0-20220412145720-b1b21edc309f/go.mod h1:Y58HGxN8aiCZOEN5uYI+dbFZO4PSMuun2y/M4CSMo8g=
 github.com/bingoohuang/sariaf v0.0.0-20201222043148-21fd9703b115/go.mod h1:DSi1LVR76Ap189KzzA40C8pFSpRZHsy/n+kgK8ihfhs=

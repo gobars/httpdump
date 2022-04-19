@@ -3,7 +3,21 @@ package util
 import (
 	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+func TestParseRequestTitle(t *testing.T) {
+	payload := []byte("GET /httplive/echo.json HTTP/1.1\r\nX-Forwarded-For: 123.117.126.249\r\nAccept-Encoding: gzip\r\nHost: 127.0.0.1:5003\r\nUser-Agent: gurl/1.0.0\r\nAccept: application/json\r\nContent-Type: application/json\r\nGurl-Date: Tue, 19 Apr 2022 06:25:30 GMT\r\nGurl-N: 1")
+	method, yes := ParseRequestTitle(payload)
+	assert.True(t, yes)
+	assert.Equal(t, "GET", method)
+	rb := &bytes.Buffer{}
+
+	rb.Write(payload)
+
+	assert.True(t, Http1EndHint(rb.Bytes()))
+}
 
 func TestHeader(t *testing.T) {
 	var payload, val []byte

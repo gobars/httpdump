@@ -71,9 +71,9 @@ func (r *TCPAssembler) createConnectionKey(src Endpoint, dst Endpoint) string {
 	srcString, dstString := src.String(), dst.String()
 	if srcString < dstString {
 		return srcString + "-" + dstString
-	} else {
-		return dstString + "-" + srcString
 	}
+
+	return dstString + "-" + srcString
 }
 
 func (r *TCPAssembler) shouldDrop(src, dst Endpoint) (dropped bool) {

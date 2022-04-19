@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/AndrewBurian/eventsource v1.1.0
 	github.com/bingoohuang/gg v0.0.0-20220415071740-064245c53d42
-	github.com/bingoohuang/golog v0.0.0-20220415064839-388a4634ee78
+	github.com/bingoohuang/golog v0.0.0-20220419071623-16dcc2aaef54
 	github.com/bingoohuang/jj v0.0.0-20220412145720-b1b21edc309f
 	github.com/bmatcuk/doublestar/v3 v3.0.0
 	github.com/gobwas/glob v0.2.3

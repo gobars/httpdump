@@ -123,7 +123,7 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 
 	for p := range c.requestStream.Packets() {
 		// 请求开头行解析成功，是一个新的请求
-		log.Printf("request payload: %s", p.Payload)
+		log.Printf("[PRE]request payload: %s", p.Payload)
 		if m, yes := util.ParseRequestTitle(p.Payload); yes {
 			rb.Reset() // 清空缓冲
 			method = m // 记录请求方法
@@ -135,6 +135,10 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 			h.dealRequest(rb, h.option, c)
 			rb.Reset()
 		}
+	}
+
+	if rb.Len() > 0 && h.option.PermitsMethod(method) {
+		h.dealRequest(rb, h.option, c)
 	}
 
 	h.handleError(io.EOF, c.lastReqTimestamp, "REQ")
