@@ -18,7 +18,7 @@ Build httpdump requires libpcap-dev and cgo enabled.
 
 ### Install
 
-`go install github.com/bingoohuang/httpdump`
+`make install`
 
 ## Cheatsheet
 
