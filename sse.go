@@ -68,6 +68,7 @@ type SSESender struct {
 func (s *SSESender) Send(msg string, _ bool) {
 	e := ParseHTTPEvent(msg)
 	d := string(codec.Json(e))
+	log.Printf("Send sse data: %s", d)
 	s.stream.Broadcast(eventsource.DataEvent(d))
 }
 
