@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -124,7 +123,7 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 	for p := range c.requestStream.Packets() {
 		// 请求开头行解析成功，是一个新的请求
 		m, yes := util.ParseRequestTitle(p.Payload)
-		log.Printf("ParseRequestTitle: method: %s yes: %t payload: %q", m, yes, string(p.Payload))
+		// log.Printf("ParseRequestTitle: method: %s yes: %t payload: %q", m, yes, string(p.Payload))
 		if yes {
 			rb.Reset() // 清空缓冲
 			method = m // 记录请求方法
@@ -132,10 +131,10 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 
 		rb.Write(p.Payload)
 
-		permitsMethod := h.option.PermitsMethod(method)
-		http1EndHint := util.Http1EndHint(rb.Bytes())
-		log.Printf("rb.Len(): %d, permitsMethod: %t, http1EndHint: %t", rb.Len(), permitsMethod, http1EndHint)
-		if rb.Len() > 0 && permitsMethod && http1EndHint {
+		// permitsMethod := h.option.PermitsMethod(method)
+		// http1EndHint := util.Http1EndHint(rb.Bytes())
+		// log.Printf("rb.Len(): %d, permitsMethod: %t, http1EndHint: %t", rb.Len(), permitsMethod, http1EndHint)
+		if rb.Len() > 0 && h.option.PermitsMethod(method) && util.Http1EndHint(rb.Bytes()) {
 			h.dealRequest(rb, h.option, c)
 			rb.Reset()
 		}
