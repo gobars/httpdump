@@ -132,7 +132,10 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 
 		rb.Write(p.Payload)
 
-		if rb.Len() > 0 && h.option.PermitsMethod(method) && util.Http1EndHint(rb.Bytes()) {
+		permitsMethod := h.option.PermitsMethod(method)
+		http1EndHint := util.Http1EndHint(rb.Bytes())
+		log.Printf("rb.Len(): %d, permitsMethod: %t, http1EndHint: %t", rb.Len(), permitsMethod, http1EndHint)
+		if rb.Len() > 0 && permitsMethod && http1EndHint {
 			h.dealRequest(rb, h.option, c)
 			rb.Reset()
 		}
