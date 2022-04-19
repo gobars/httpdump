@@ -4,8 +4,11 @@ import (
 	"bufio"
 	"embed"
 	"io/fs"
+	"log"
 	"net/http"
+	"path"
 	"strings"
+	"text/template"
 
 	"github.com/AndrewBurian/eventsource"
 	"github.com/bingoohuang/gg/pkg/codec"
@@ -20,12 +23,42 @@ import (
 var web embed.FS
 
 var webRoot = func() fs.FS {
-	sub, _ := fs.Sub(web, "web")
+	sub, err := fs.Sub(web, "web")
+	if err != nil {
+		log.Fatal(err)
+	}
 	return sub
 }()
 
-func SSEWebHandler(w http.ResponseWriter, r *http.Request) {
-	http.FileServer(http.FS(webRoot)).ServeHTTP(w, r)
+var webTemplate = func() *template.Template {
+	subTemplate, err := template.New("").ParseFS(webRoot, "*.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return subTemplate
+}()
+
+func SSEWebHandler(contextPath string, stream *eventsource.Stream) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p := path.Join("/", strings.TrimPrefix(r.URL.Path, contextPath))
+		if contextPath == "/" {
+			contextPath = ""
+		}
+
+		switch p {
+		case "/":
+			if err := webTemplate.ExecuteTemplate(w, "index.html", map[string]string{
+				"ContextPath": contextPath,
+			}); err != nil {
+				log.Fatal(err)
+			}
+		case "/sse":
+			SSEHandler(stream).ServeHTTP(w, r)
+		default:
+			http.StripPrefix(contextPath, http.FileServer(http.FS(webRoot))).ServeHTTP(w, r)
+		}
+	}
 }
 
 type SSESender struct {

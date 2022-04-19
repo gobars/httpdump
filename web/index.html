@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <title>HTTP Dump</title>
-    <link rel="stylesheet" type="text/css" href="bulma.min.css">
+    <link rel="stylesheet" type="text/css" href="{{.ContextPath}}/bulma.min.css">
     <style>
         pre {
             white-space: pre-wrap; /* Since CSS 2.1 */
@@ -55,7 +55,7 @@
 </div>
 
 <script type="text/javascript">
-    const source = new EventSource("sse");
+    const source = new EventSource("{{.ContextPath}}/sse");
     source.onmessage = function (e) {
         let j = JSON.parse(e.data)
         if (j.EOF) {

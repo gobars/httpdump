@@ -140,13 +140,10 @@ func (o *App) run() {
 		}
 
 		stream := NewSSEStream()
-		homePath := path.Join("/", o.WebContext)
-		ssePath := path.Join("/", o.WebContext, "/sse")
-		log.Printf("homePath: %s", homePath)
-		log.Printf("ssePath: %s", ssePath)
+		contextPath := path.Join("/", o.WebContext)
+		log.Printf("contextPath: %s", contextPath)
 
-		http.HandleFunc(homePath, SSEWebHandler)
-		http.HandleFunc(ssePath, SSEHandler(stream))
+		http.Handle("/", http.HandlerFunc(SSEWebHandler(contextPath, stream)))
 		senders = append(senders, &SSESender{stream: stream})
 		log.Printf("start to listen on %d", port)
 		go func() {
@@ -155,7 +152,7 @@ func (o *App) run() {
 				log.Printf("listen and serve failed: %v", err)
 			}
 		}()
-		go osx.OpenBrowser(fmt.Sprintf("http://127.0.0.1:%d%s", port, homePath))
+		go osx.OpenBrowser(fmt.Sprintf("http://127.0.0.1:%d%s", port, contextPath))
 	}
 
 	if o.File == "" {
