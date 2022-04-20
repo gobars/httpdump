@@ -21,11 +21,19 @@ outchan: 40960
 #
 #   host    string  usage: Filter by request host, using wildcard match(*, ?) 
 #   uri     string  usage: Filter by request url path, using wildcard match(*, ?) 
-#   method  string  usage: Filter by request method, multiple by comma
-method: POST
+#   method  string  usage: Filter by request method, multiple methods separated by comma
+method: GET,POST,PUT,PATCH,DELETE,HEAD
+
+#  Web        bool   `usage:"Start web server for HTTP requests and responses event"`
+web: true
+#  WebPort    int    `usage:"Web server port if web is enable"`
+webport: 6003
+#  WebContext string `usage:"Web server context path if web is enable"`
+webcontext: httpdump
 #   verbose string  usage: Verbose flag, available req/rsp/all for http replay dump 
 #
-#   resp    bool  usage: Print response or not 
+#   resp    bool  usage: Print response or not
+resp: true
 #   force   bool  usage: Force print unknown content-type http body even if it seems not to be text content 
 #   output   []string  usage: File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode\n Or Relay http address, eg http://127.0.0.1:5002 
 output:
