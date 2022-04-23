@@ -58,14 +58,18 @@
     const source = new EventSource("{{.ContextPath}}/sse");
     source.onmessage = function (e) {
         let j = JSON.parse(e.data)
+        let id = j.Connection + '.' + j.Seq
+        let tr = document.getElementById(id)
+        let trExists = !!tr
         if (j.EOF) {
+            if (trExists) {
+                tr.cells[0].classList.add('has-background-grey-light')
+                tr.cells[0].title = "Connection Closed"
+            }
             return
         }
 
-        let id = j.Connection + '.' + j.Seq
-        let tr = document.getElementById(id)
-        let trExists = false
-        if (!tr) {
+        if (!trExists) {
             tr = document.getElementById("tbody").insertRow(0);
             tr.id = id
             tr.innerHTML =
@@ -97,20 +101,19 @@
                 document.getElementById("rspPayload").innerHTML = tr.cells[11].innerHTML
                 openModal()
             })
-        } else {
-            trExists = true
         }
+
         if (j.Req) {
             tr.cells[2].innerText = j.Method
             tr.cells[3].innerText = j.Host
             tr.cells[4].innerText = j.Path
-            tr.cells[8].innerText = j.ReqSize
+            tr.cells[8].innerText = j.Size
             tr.cells[10].innerHTML = '<pre>' + j.Payload + '</pre>'
             tr.cells[12].innerText = j.Timestamp
         } else if (j.Rsp) {
             tr.cells[5].innerText = j.ContentType
             tr.cells[6].innerText = j.Status
-            tr.cells[9].innerText = j.RspSize
+            tr.cells[9].innerText = j.Size
             tr.cells[11].innerHTML = '<pre>' + j.Payload + '</pre>'
             tr.cells[13].innerText = j.Timestamp
         }

@@ -144,7 +144,7 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 		h.dealRequest(rb, h.option, c)
 	}
 
-	h.handleError(io.EOF, c.lastReqTimestamp, "REQ")
+	h.handleError(io.EOF, c.lastReqTimestamp, TagRequest)
 }
 
 // read http request/response stream, and do output
@@ -172,13 +172,13 @@ func (h *Base) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 		}
 	}
 
-	h.handleError(io.EOF, c.lastRspTimestamp, "RSP")
+	h.handleError(io.EOF, c.lastRspTimestamp, TagResponse)
 }
 
 func (h *Base) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) {
 	h.buffer = new(bytes.Buffer)
 	if r, err := httpport.ReadRequest(bufio.NewReader(rb)); err != nil {
-		h.handleError(err, c.lastReqTimestamp, "REQ")
+		h.handleError(err, c.lastReqTimestamp, TagRequest)
 	} else {
 		h.processRequest(false, r, o, c.lastReqTimestamp)
 	}
@@ -187,30 +187,33 @@ func (h *Base) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) {
 func (h *Base) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection) {
 	h.buffer = new(bytes.Buffer)
 	if r, err := httpport.ReadResponse(bufio.NewReader(rb), nil); err != nil {
-		h.handleError(err, c.lastRspTimestamp, "RSP")
+		h.handleError(err, c.lastRspTimestamp, TagResponse)
 	} else {
 		h.processResponse(false, r, o, c.lastRspTimestamp)
 	}
 }
 
 func (h *Base) processRequest(discard bool, r Req, o *Option, startTime time.Time) {
+	seq := h.reqCounter.Incr()
+
 	if discard {
 		defer discardAll(r.GetBody())
 	}
 
 	if o.Permits(r) {
-		h.printRequest(r, startTime, h.reqCounter.Incr())
+		h.printRequest(r, startTime, seq)
 		h.sender.Send(h.buffer.String(), true)
 	}
 }
 
 func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time) {
+	seq := h.rspCounter.Incr()
 	if discard {
 		defer discardAll(r.GetBody())
 	}
 
 	if o.Status.Contains(r.GetStatusCode()) {
-		h.printResponse(r, endTime, h.rspCounter.Incr())
+		h.printResponse(r, endTime, seq)
 		h.sender.Send(h.buffer.String(), true)
 	}
 }
@@ -377,20 +380,32 @@ func discardAll(r io.Reader) (discarded int) {
 }
 
 func bodyFileName(prefix string, seq int32, req string, t time.Time) string {
-	timeStr := t.Format("20060102")
-	return fmt.Sprintf("%s.%s.%d.%s", prefix, timeStr, seq, req)
+	return fmt.Sprintf("%s.%s.%d.%s", prefix, t.Format("20060102"), seq, req)
 }
 
-func (h *Base) handleError(err error, t time.Time, requestOrResponse string) {
+type Tag string
+
+const (
+	TagRequest  Tag = "REQ"
+	TagResponse Tag = "RSP"
+)
+
+func (h *Base) handleError(err error, t time.Time, tag Tag) {
+	var seq int32
+	if tag == TagRequest {
+		seq = h.reqCounter.Get()
+	} else {
+		seq = h.rspCounter.Get()
+	}
 	k := h.key
 	tim := t.Format(time.RFC3339Nano)
 	if IsEOF(err) {
-		msg := fmt.Sprintf("\n### EOF %s %s-%s %s", requestOrResponse, k.Src(), k.Dst(), tim)
+		msg := fmt.Sprintf("\n### EOF#%d %s %s-%s %s", seq, tag, k.Src(), k.Dst(), tim)
 		h.sender.Send(msg, false)
 	} else {
-		msg := fmt.Sprintf("\n### ERR %s %s-%s %s, error: %v", requestOrResponse, k.Src(), k.Dst(), tim, err)
+		msg := fmt.Sprintf("\n### ERR#%d %s %s-%s %s, error: %v", seq, tag, k.Src(), k.Dst(), tim, err)
 		h.sender.Send(msg, false)
-		_, _ = fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", requestOrResponse, err)
+		_, _ = fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", tag, err)
 	}
 }
 
@@ -416,3 +431,4 @@ type Counter struct {
 }
 
 func (c *Counter) Incr() int32 { return atomic.AddInt32(&c.counter, 1) }
+func (c *Counter) Get() int32  { return atomic.LoadInt32(&c.counter) }

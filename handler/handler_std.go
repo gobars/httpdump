@@ -116,7 +116,7 @@ func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
 		r, err := http.ReadResponse(buf, nil)
 		now := time.Now()
 		if err != nil {
-			h.handleError(err, now, "RSP")
+			h.handleError(err, now, TagResponse)
 			return
 		}
 
@@ -136,7 +136,7 @@ func (f *Factory) runRequests(key *streamKey, buf *bufio.Reader) {
 		r, err := http.ReadRequest(buf)
 		now := time.Now()
 		if err != nil {
-			h.handleError(err, now, "REQ")
+			h.handleError(err, now, TagRequest)
 			return
 		}
 

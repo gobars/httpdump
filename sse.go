@@ -82,33 +82,29 @@ func ParseHTTPEvent(msg string) HTTPEvent {
 		line := string(scanner.Bytes())
 		// ### #1 REQ 127.0.0.1:54386-127.0.0.1:5003 2022-04-17T10:58:09.505447+08:00
 		// ### #1 RSP 127.0.0.1:54386-127.0.0.1:5003 2022-04-17T10:58:09.505464+08:00
-		// ### EOF REQ 127.0.0.1:54386-127.0.0.1:5003 2022-04-17T10:58:09.505447+08:00
-		// ### EOF RSP 127.0.0.1:54386-127.0.0.1:5003 2022-04-17T10:58:09.505499+08:00
+		// ### EOF#1 REQ 127.0.0.1:54386-127.0.0.1:5003 2022-04-17T10:58:09.505447+08:00
+		// ### EOF#1 RSP 127.0.0.1:54386-127.0.0.1:5003 2022-04-17T10:58:09.505499+08:00
 		if strings.HasPrefix(line, "###") {
 			fields := strings.Fields(line)
+			field1 := FieldsN(fields, 1)
+			field2 := FieldsN(fields, 2)
+			e.Req = field2 == "REQ"
+			e.Rsp = field2 == "RSP"
 			e.Connection = FieldsN(fields, 3)
 			e.Timestamp = FieldsN(fields, 4)
-			seq := FieldsN(fields, 1)
-			if seq == "EOF" {
+			e.Size = man.IBytes(uint64(len(msg)))
+			if strings.HasPrefix(field1, "EOF") {
 				e.EOF = true
-				e.Req = FieldsN(fields, 2) == "REQ"
-				e.Rsp = FieldsN(fields, 2) == "RSP"
+				e.Seq = ss.ParseInt(field1[4:])
 				break
 			}
 
-			if strings.HasPrefix(seq, "#") {
-				e.Seq = ss.ParseInt(seq[1:])
-			}
-
-			switch FieldsN(fields, 2) {
+			e.Seq = ss.ParseInt(field1[1:])
+			switch field2 {
 			case "REQ":
-				e.Req = true
-				e.ReqSize = man.IBytes(uint64(len(msg)))
 				scanner.Scan()
 				e.Method, e.Path, _ = replay.ParseRequestTitle(scanner.Bytes())
 			case "RSP":
-				e.Rsp = true
-				e.RspSize = man.IBytes(uint64(len(msg)))
 				scanner.Scan()
 				e.Status, _ = util.ParseResponseTitle(scanner.Bytes())
 			}
@@ -153,8 +149,6 @@ type HTTPEvent struct {
 
 	Timestamp string
 	Payload   string
-	ReqSize   string
-	RspSize   string
 }
 
 func NewSSEStream() *eventsource.Stream {
