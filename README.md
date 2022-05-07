@@ -22,7 +22,8 @@ Build httpdump requires libpcap-dev and cgo enabled.
 
 ## Cheatsheet
 
-1. 监听发往 192.168.1.1:80 的 HTTP POST 请求及响应，并且写到日志文件 `log-yyyy-MM-dd.http` 中，按 100m 滚动(例如 log-yyyy-MM-dd_00001.http)，同时往 192.168.1.2:80 复制。
+1. 监听发往 192.168.1.1:80 的 HTTP POST 请求及响应，并且写到日志文件 `log-yyyy-MM-dd.http` 中，按 100m 滚动(例如 log-yyyy-MM-dd_00001.http)，同时往
+   192.168.1.2:80 复制。
 
 `nohup httpdump -bpf "tcp and ((dst host 192.168.1.1 and port 80) || (src host 192.168.1.1 and src port 80))" -method POST -output log-yyyy-MM-dd.http:100m -output 192.168.1.2:80 2>&1 >> httpdump.nohup &`
 
@@ -140,7 +141,6 @@ httpdump -ip 101.201.170.152 -port 80 # filter by ip and port
 
 `httpdump -bpf "tcp and ((dst host 192.168.1.1 and dst port 5003) or (src host 192.168.1.1 and src port 5003))"  -method POST`
 
-
 ## 部署
 
 1. 查看版本：`./httpdump -v` 最新版本是：httpdump v1.2.7 2021-06-21 14:13:46
@@ -167,8 +167,6 @@ output:
   # - stdout
 ```
 
-
-
 ## 删除大量文件
 
 `find . -type f -name 'log-*'  -delete`
@@ -183,3 +181,13 @@ output:
 `sudo httpdump -port 5003 -resp -web -web-port 6003 -web-context httpdump`
 
 ![img.png](_doc/img.png)
+
+## PRINT_JSON=Y
+
+```sh
+$ sudo PRINT_JSON=Y httpdump -i lo0 -port 5003 -resp -level all
+{"seq":1,"src":"127.0.0.1:58091","dest":"127.0.0.1:5003","timestamp":"2022-05-07T19:01:02.995866+08:00","requestUri":"/backup/person/doc/28plAIG37D36wdbG2J1jcKZumjO","method":"POST","host":"127.0.0.1:5003","header":{"Accept-Encoding":["gzip"],"Content-Type":["application/json"],"Host":["127.0.0.1:5003"],"User-Agent":["Go-http-client/1.1"]},"body":"{\"addr\":\"辽宁省抚顺市日舀路3371号呧媏小区13单元1752室\",\"idcard\":\"516901201412029865\",\"name\":\"庄噛鼶\",\"sex\":\"女\"}\n"}
+{"seq":1,"src":"127.0.0.1:58091","dest":"127.0.0.1:5003","timestamp":"2022-05-07T19:01:02.995916+08:00","header":{"Content-Encoding":["gzip"],"Content-Length":["571"],"Content-Type":["application/json; charset=utf-8"],"Date":["Sat, 07 May 2022 11:01:02 GMT"],"Vary":["Accept-Encoding"]},"body":"{\n    \"Ua-Bot\": false,\n    \"Ua-Browser\": \"Go-http-client\",\n    \"Ua-BrowserVersion\": \"1.1\",\n    \"Ua-Engine\": \"\",\n    \"Ua-EngineVersion\": \"\",\n    \"Ua-Localization\": \"\",\n    \"Ua-Mobile\": false,\n    \"Ua-Mozilla\": \"\",\n    \"Ua-OS\": \"\",\n    \"Ua-OSInfo\": {\n        \"FullName\": \"\",\n        \"Name\": \"\",\n        \"Version\": \"\"\n    },\n    \"Ua-Platform\": \"\",\n    \"headers\": {\n        \"Accept-Encoding\": \"gzip\",\n        \"Content-Type\": \"application/json\",\n        \"User-Agent\": \"Go-http-client/1.1\"\n    },\n    \"host\": \"127.0.0.1:5003\",\n    \"method\": \"POST\",\n    \"payload\": {\n        \"addr\": \"辽宁省抚顺市日舀路3371号呧媏小区13单元1752室\",\n        \"idcard\": \"516901201412029865\",\n        \"name\": \"庄噛鼶\",\n        \"sex\": \"女\"\n    },\n    \"proto\": \"HTTP/1.1\",\n    \"remoteAddr\": \"127.0.0.1:58091\",\n    \"requestUri\": \"/backup/person/doc/28plAIG37D36wdbG2J1jcKZumjO\",\n    \"router\": \"/backup/*other\",\n    \"routerParams\": {\n        \"other\": \"/person/doc/28plAIG37D36wdbG2J1jcKZumjO\"\n    },\n    \"timeGo\": \"2022-05-07 19:01:02.9950\",\n    \"timeTo\": \"2022-05-07 19:01:02.9950\",\n    \"transferEncoding\": \"chunked\",\n    \"url\": \"/backup/person/doc/28plAIG37D36wdbG2J1jcKZumjO\"\n}","statusCode":200}
+{"seq":1,"src":"127.0.0.1:58097","dest":"127.0.0.1:5003","timestamp":"2022-05-07T19:01:04.3194+08:00","requestUri":"/backup/person/doc/28plAUob6c4JZUZBaKEPtUo7JQc","method":"POST","host":"127.0.0.1:5003","header":{"Accept-Encoding":["gzip"],"Content-Type":["application/json"],"Host":["127.0.0.1:5003"],"User-Agent":["Go-http-client/1.1"]},"body":"{\"addr\":\"吉林省四平市襻螆路1496号斨炗小区18单元1504室\",\"idcard\":\"716848200911090305\",\"name\":\"荀襽碷\",\"sex\":\"男\"}\n"}
+{"seq":1,"src":"127.0.0.1:58097","dest":"127.0.0.1:5003","timestamp":"2022-05-07T19:01:04.319436+08:00","header":{"Content-Encoding":["gzip"],"Content-Length":["571"],"Content-Type":["application/json; charset=utf-8"],"Date":["Sat, 07 May 2022 11:01:04 GMT"],"Vary":["Accept-Encoding"]},"body":"{\n    \"Ua-Bot\": false,\n    \"Ua-Browser\": \"Go-http-client\",\n    \"Ua-BrowserVersion\": \"1.1\",\n    \"Ua-Engine\": \"\",\n    \"Ua-EngineVersion\": \"\",\n    \"Ua-Localization\": \"\",\n    \"Ua-Mobile\": false,\n    \"Ua-Mozilla\": \"\",\n    \"Ua-OS\": \"\",\n    \"Ua-OSInfo\": {\n        \"FullName\": \"\",\n        \"Name\": \"\",\n        \"Version\": \"\"\n    },\n    \"Ua-Platform\": \"\",\n    \"headers\": {\n        \"Accept-Encoding\": \"gzip\",\n        \"Content-Type\": \"application/json\",\n        \"User-Agent\": \"Go-http-client/1.1\"\n    },\n    \"host\": \"127.0.0.1:5003\",\n    \"method\": \"POST\",\n    \"payload\": {\n        \"addr\": \"吉林省四平市襻螆路1496号斨炗小区18单元1504室\",\n        \"idcard\": \"716848200911090305\",\n        \"name\": \"荀襽碷\",\n        \"sex\": \"男\"\n    },\n    \"proto\": \"HTTP/1.1\",\n    \"remoteAddr\": \"127.0.0.1:58097\",\n    \"requestUri\": \"/backup/person/doc/28plAUob6c4JZUZBaKEPtUo7JQc\",\n    \"router\": \"/backup/*other\",\n    \"routerParams\": {\n        \"other\": \"/person/doc/28plAUob6c4JZUZBaKEPtUo7JQc\"\n    },\n    \"timeGo\": \"2022-05-07 19:01:04.3182\",\n    \"timeTo\": \"2022-05-07 19:01:04.3182\",\n    \"transferEncoding\": \"chunked\",\n    \"url\": \"/backup/person/doc/28plAUob6c4JZUZBaKEPtUo7JQc\"\n}","statusCode":200}
+```

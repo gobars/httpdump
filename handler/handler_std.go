@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -30,13 +29,14 @@ func (r *TcpStdAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestam
 }
 
 type Factory struct {
+	context.Context
+
 	option *Option
 	sender Sender
-	ctx    context.Context
 }
 
 func NewFactory(ctx context.Context, option *Option, sender Sender) tcpassembly.StreamFactory {
-	return &Factory{ctx: ctx, option: option, sender: sender}
+	return &Factory{Context: ctx, option: option, sender: sender}
 }
 
 type streamKey struct {
@@ -98,17 +98,17 @@ type HttpReq struct {
 	*http.Request
 }
 
-func (h HttpReq) GetBody() io.ReadCloser         { return h.Body }
-func (h HttpReq) GetHost() string                { return h.Host }
-func (h HttpReq) GetRequestURI() string          { return h.RequestURI }
-func (h HttpReq) GetPath() string                { return h.URL.Path }
-func (h HttpReq) GetMethod() string              { return h.Method }
-func (h HttpReq) GetProto() string               { return h.Proto }
-func (h HttpReq) GetHeader() map[string][]string { return h.Header }
-func (h HttpReq) GetContentLength() int64        { return h.ContentLength }
+func (h HttpReq) GetBody() io.ReadCloser  { return h.Body }
+func (h HttpReq) GetHost() string         { return h.Host }
+func (h HttpReq) GetRequestURI() string   { return h.RequestURI }
+func (h HttpReq) GetPath() string         { return h.URL.Path }
+func (h HttpReq) GetMethod() string       { return h.Method }
+func (h HttpReq) GetProto() string        { return h.Proto }
+func (h HttpReq) GetHeader() http.Header  { return h.Header }
+func (h HttpReq) GetContentLength() int64 { return h.ContentLength }
 
 func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
-	h := &Base{key: key, buffer: new(bytes.Buffer), option: f.option, sender: f.sender}
+	h := &Base{Context: f.Context, key: key, option: f.option, sender: f.sender, usingJSON: IsUsingJSON()}
 
 	for {
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
@@ -124,7 +124,7 @@ func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
 }
 
 func (f *Factory) runRequests(key *streamKey, buf *bufio.Reader) {
-	h := &Base{key: key, buffer: new(bytes.Buffer), option: f.option, sender: f.sender}
+	h := &Base{Context: f.Context, key: key, option: f.option, sender: f.sender, usingJSON: IsUsingJSON()}
 
 	for {
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束

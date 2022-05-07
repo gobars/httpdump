@@ -1,12 +1,13 @@
 package handler
 
 import (
-	"bytes"
+	"context"
 	"sync"
 )
 
 // ConnectionHandlerFast impl ConnectionHandler
 type ConnectionHandlerFast struct {
+	context.Context
 	Option *Option
 	Sender Sender
 	wg     sync.WaitGroup
@@ -14,13 +15,14 @@ type ConnectionHandlerFast struct {
 
 func (h *ConnectionHandlerFast) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
 	key := &ConnectionKey{src: src, dst: dst}
-	reqHandler := &Base{key: key, buffer: new(bytes.Buffer), option: h.Option, sender: h.Sender}
+	b := &Base{Context: h.Context, key: key, option: h.Option, sender: h.Sender, usingJSON: IsUsingJSON()}
+
 	h.wg.Add(1)
-	go reqHandler.handleRequest(&h.wg, c)
+	go b.handleRequest(&h.wg, c)
 
 	if h.Option.Resp {
 		h.wg.Add(1)
-		rspHandler := &Base{key: key, buffer: new(bytes.Buffer), option: h.Option, sender: h.Sender}
+		rspHandler := &Base{Context: h.Context, key: key, option: h.Option, sender: h.Sender, usingJSON: IsUsingJSON()}
 		go rspHandler.handleResponse(&h.wg, c)
 	}
 }

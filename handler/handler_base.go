@@ -3,16 +3,21 @@ package handler
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/ginx"
+	"github.com/bingoohuang/gg/pkg/osx"
 
 	"github.com/bingoohuang/gg/pkg/iox"
 	"go.uber.org/multierr"
@@ -67,28 +72,36 @@ func (ss Senders) Close() (err error) {
 	return err
 }
 
+func IsUsingJSON() bool {
+	return ss.AnyOfFold(os.Getenv("PRINT_JSON"), "y", "1", "yes", "on")
+}
+
 type Base struct {
-	key    Key
-	buffer *bytes.Buffer
-	option *Option
-	sender Sender
+	context.Context
+
+	key       Key
+	reqBuffer bytes.Buffer
+	rspBuffer bytes.Buffer
+	option    *Option
+	sender    Sender
 
 	reqCounter Counter
 	rspCounter Counter
+
+	usingJSON bool
 }
 
-func (h *Base) writeFormat(f string, a ...interface{}) { _, _ = fmt.Fprintf(h.buffer, f, a...) }
-func (h *Base) write(a ...interface{})                 { _, _ = fmt.Fprint(h.buffer, a...) }
-func (h *Base) writeBytes(p []byte)                    { h.buffer.Write(p) }
-func (h *Base) writeLine(a ...interface{}) {
-	_, _ = fmt.Fprint(h.buffer, a...)
-	_, _ = fmt.Fprintf(h.buffer, "\r\n")
+func writeFormat(b *bytes.Buffer, f string, a ...interface{}) { _, _ = fmt.Fprintf(b, f, a...) }
+func writeBytes(b *bytes.Buffer, p []byte)                    { b.Write(p) }
+func writeLine(b *bytes.Buffer, a ...interface{}) {
+	_, _ = fmt.Fprint(b, a...)
+	_, _ = fmt.Fprintf(b, "\r\n")
 }
 
-func (h *Base) printHeader(header map[string][]string) {
+func printHeader(b *bytes.Buffer, header map[string][]string) {
 	for name, values := range header {
 		for _, value := range values {
-			h.writeFormat("%s: %s\r\n", name, value)
+			writeFormat(b, "%s: %s\r\n", name, value)
 		}
 	}
 }
@@ -100,8 +113,85 @@ type Req interface {
 	GetPath() string
 	GetMethod() string
 	GetProto() string
-	GetHeader() map[string][]string
+	GetHeader() http.Header
 	GetContentLength() int64
+}
+
+type ReqBean struct {
+	Seq        int32
+	Src, Dest  string
+	Timestamp  string
+	RequestURI string
+	Method     string
+	Host       string
+	Header     http.Header
+	Body       string
+}
+
+func ReadBody(h interface {
+	GetBody() io.ReadCloser
+	GetHeader() http.Header
+	GetContentLength() int64
+}) string {
+	var body io.ReadCloser
+	header := h.GetHeader()
+	if ct := header.Get("Content-Type"); ss.AnyOf(ct, "application/json") {
+		body = h.GetBody()
+	} else if l := int(h.GetContentLength()); l > 0 && l < osx.EnvSize("MAX_BODY_SIZE", 4096) {
+		body = h.GetBody()
+	}
+
+	if body != nil {
+		if ce := header.Get("Content-Encoding"); ce == "gzip" {
+			body = &httpport.GzipReader{Body: body}
+		} else if ce != "" {
+			body = nil
+		}
+	}
+
+	if body == nil {
+		return ""
+	}
+	return iox.ReadString(body)
+}
+
+func ReqToJSON(ctx context.Context, h Req, seq int32, src, dest, timestamp string) ([]byte, error) {
+	bean := ReqBean{
+		Seq:        seq,
+		Src:        src,
+		Dest:       dest,
+		Timestamp:  timestamp,
+		Host:       h.GetHost(),
+		RequestURI: h.GetRequestURI(),
+		Method:     h.GetMethod(),
+		Header:     h.GetHeader(),
+		Body:       ReadBody(h),
+	}
+
+	return ginx.JsoniConfig.Marshal(ctx, bean)
+}
+
+type RspBean struct {
+	Seq       int32
+	Src, Dest string
+	Timestamp string
+
+	Header     http.Header
+	Body       string
+	StatusCode int
+}
+
+func RspToJSON(ctx context.Context, h Rsp, seq int32, src, dest, timestamp string) ([]byte, error) {
+	bean := RspBean{
+		Seq:        seq,
+		Src:        src,
+		Dest:       dest,
+		Timestamp:  timestamp,
+		StatusCode: h.GetStatusCode(),
+		Header:     h.GetHeader(),
+		Body:       ReadBody(h),
+	}
+	return ginx.JsoniConfig.Marshal(ctx, bean)
 }
 
 type Rsp interface {
@@ -177,7 +267,7 @@ func (h *Base) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 }
 
 func (h *Base) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) {
-	h.buffer = new(bytes.Buffer)
+	h.reqBuffer.Reset()
 	if r, err := httpport.ReadRequest(bufio.NewReader(rb)); err != nil {
 		h.handleError(err, c.lastReqTimestamp, TagRequest)
 	} else {
@@ -186,7 +276,7 @@ func (h *Base) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) {
 }
 
 func (h *Base) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection) {
-	h.buffer = new(bytes.Buffer)
+	h.rspBuffer.Reset()
 	if r, err := httpport.ReadResponse(bufio.NewReader(rb), nil); err != nil {
 		h.handleError(err, c.lastRspTimestamp, TagResponse)
 	} else {
@@ -202,8 +292,18 @@ func (h *Base) processRequest(discard bool, r Req, o *Option, startTime time.Tim
 	}
 
 	if o.Permits(r) {
-		h.printRequest(r, startTime, seq)
-		h.sender.Send(h.buffer.String(), true)
+		if h.usingJSON {
+			data, err := ReqToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(),
+				startTime.Format(time.RFC3339Nano))
+			if err != nil {
+				log.Printf("req to JSON  failed: %v", err)
+			}
+
+			h.sender.Send(string(data)+"\n", true)
+		} else {
+			h.printRequest(r, startTime, seq)
+			h.sender.Send(h.reqBuffer.String(), true)
+		}
 	}
 }
 
@@ -214,69 +314,84 @@ func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time
 	}
 
 	if o.Status.Contains(r.GetStatusCode()) {
-		h.printResponse(r, endTime, seq)
-		h.sender.Send(h.buffer.String(), true)
+		if h.usingJSON {
+			data, err := RspToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(),
+				endTime.Format(time.RFC3339Nano))
+			if err != nil {
+				log.Printf("req to JSON  failed: %v", err)
+			}
+
+			h.sender.Send(string(data)+"\n", true)
+		} else {
+
+			h.printResponse(r, endTime, seq)
+			h.sender.Send(h.rspBuffer.String(), true)
+		}
 	}
 }
 
 // print http request
 func (h *Base) printRequest(r Req, startTime time.Time, seq int32) {
-	h.writeLine(fmt.Sprintf("\n### #%d REQ %s-%s %s",
+	b := &h.reqBuffer
+	writeLine(b, fmt.Sprintf("\n### #%d REQ %s-%s %s",
 		seq, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano)))
 
 	o := h.option
 	if ss.AnyOf(o.Level, LevelUrl) {
-		h.writeFormat("%s %s\r\n", r.GetMethod(), r.GetHost()+r.GetPath())
+		writeFormat(b, "%s %s\r\n", r.GetMethod(), r.GetHost()+r.GetPath())
 		return
 	}
 
-	h.writeFormat("%s %s %s\r\n", r.GetMethod(), r.GetRequestURI(), r.GetProto())
+	writeFormat(b, "%s %s %s\r\n", r.GetMethod(), r.GetRequestURI(), r.GetProto())
 	header := r.GetHeader()
 	contentLength := parseContentLength(r.GetContentLength(), header)
 	header["Content-Length"] = []string{fmt.Sprintf("%d", contentLength)}
-	h.printHeader(header)
-	h.writeBytes([]byte("\r\n"))
+	printHeader(b, header)
+	writeBytes(b, []byte("\r\n"))
 
 	hasBody := contentLength != 0 && !ss.AnyOf(r.GetMethod(), "GET", "HEAD", "TRACE", "OPTIONS")
 
 	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, seq, "REQ", startTime)
 		if n, err := DumpBody(r.GetBody(), fn, &o.dumpNum); err != nil {
-			h.writeLine("dump to file failed:", err)
+			writeLine(b, "dump to file failed:", err)
 		} else if n > 0 {
-			h.writeLine("\n// dump body to file:", fn, "size:", n)
+			writeLine(b, "\n// dump body to file:", fn, "size:", n)
 		}
 		return
 	}
 
 	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.GetBody()), ", set [level = all] to display http body")
+			writeLine(b, "\n// body size:", discardAll(r.GetBody()), ", set [level = all] to display http body")
 		}
 		return
 	}
 
 	if hasBody {
-		h.printBody(header, r.GetBody())
+		h.printBody(b, header, r.GetBody())
 	}
 }
 
 // print http response
 func (h *Base) printResponse(r Rsp, endTime time.Time, seq int32) {
 	defer discardAll(r.GetBody())
-	h.writeLine(fmt.Sprintf("\n### #%d RSP %s-%s %s",
+
+	b := &h.rspBuffer
+
+	writeLine(b, fmt.Sprintf("\n### #%d RSP %s-%s %s",
 		seq, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano)))
 
-	h.writeLine(r.GetStatusLine())
+	writeLine(b, r.GetStatusLine())
 	o := h.option
 	if !o.Resp || o.Level == LevelUrl {
 		return
 	}
 
 	for _, header := range r.GetRawHeaders() {
-		h.writeLine(header)
+		writeLine(b, header)
 	}
-	h.writeBytes([]byte("\r\n"))
+	writeBytes(b, []byte("\r\n"))
 
 	contentLength := parseContentLength(r.GetContentLength(), r.GetHeader())
 	hasBody := contentLength > 0 && r.GetStatusCode() != 304 && r.GetStatusCode() != 204
@@ -284,22 +399,22 @@ func (h *Base) printResponse(r Rsp, endTime time.Time, seq int32) {
 	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, seq, "RSP", endTime)
 		if n, err := DumpBody(r.GetBody(), fn, &o.dumpNum); err != nil {
-			h.writeLine("dump to file failed:", err)
+			writeLine(b, "dump to file failed:", err)
 		} else if n > 0 {
-			h.writeLine("\n// dump body to file:", fn, "size:", n)
+			writeLine(b, "\n// dump body to file:", fn, "size:", n)
 		}
 		return
 	}
 
 	if o.Level == LevelHeader {
 		if hasBody {
-			h.writeLine("\n// body size:", discardAll(r.GetBody()), ", set [level = all] to display http body")
+			writeLine(b, "\n// body size:", discardAll(r.GetBody()), ", set [level = all] to display http body")
 		}
 		return
 	}
 
 	if hasBody {
-		h.printBody(r.GetHeader(), r.GetBody())
+		h.printBody(b, r.GetHeader(), r.GetBody())
 	}
 }
 
@@ -317,7 +432,7 @@ func parseContentLength(cl int64, header http.Header) int64 {
 }
 
 // print http request/response body
-func (h *Base) printBody(header http.Header, reader io.ReadCloser) {
+func (h *Base) printBody(b *bytes.Buffer, header http.Header, reader io.ReadCloser) {
 	// deal with content encoding such as gzip, deflate
 	nr, decompressed := util.TryDecompress(header, reader)
 	if decompressed {
@@ -335,8 +450,8 @@ func (h *Base) printBody(header http.Header, reader io.ReadCloser) {
 	isBinary := mt.isBinaryContent()
 
 	if !isText {
-		if err := h.printNonTextTypeBody(nr, contentType, isBinary); err != nil {
-			h.writeLine("{Read content error", err, "}")
+		if err := h.printNonTextTypeBody(b, nr, contentType, isBinary); err != nil {
+			writeLine(b, "{Read content error", err, "}")
 		}
 		return
 	}
@@ -352,26 +467,26 @@ func (h *Base) printBody(header http.Header, reader io.ReadCloser) {
 		body, err = readWithCharset(nr, charset)
 	}
 	if err != nil {
-		h.writeLine("{Read body failed", err, "}")
+		writeLine(b, "{Read body failed", err, "}")
 		return
 	}
 
 	if l := len(body); l > 0 {
-		h.writeBytes(body)
+		writeBytes(b, body)
 	}
 }
 
-func (h *Base) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
+func (h *Base) printNonTextTypeBody(b *bytes.Buffer, reader io.Reader, contentType string, isBinary bool) error {
 	if h.option.Force && !isBinary {
 		data, err := ioutil.ReadAll(reader)
 		if err != nil {
 			return err
 		}
 		// TODO: try to detect charset
-		h.writeLine(string(data))
-		h.writeLine()
+		writeLine(b, string(data))
+		writeLine(b)
 	} else {
-		h.writeLine("{Non-text body, content-type:", contentType, ", len:", discardAll(reader), "}")
+		writeLine(b, "{Non-text body, content-type:", contentType, ", len:", discardAll(reader), "}")
 	}
 	return nil
 }
@@ -396,6 +511,10 @@ func isEOF(e error) bool {
 }
 
 func (h *Base) handleError(err error, t time.Time, tag Tag) {
+	if h.usingJSON {
+		return
+	}
+
 	var seq int32
 	if tag == TagRequest {
 		seq = h.reqCounter.Get()

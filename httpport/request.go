@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -254,14 +255,14 @@ type Request struct {
 	Cancel <-chan struct{}
 }
 
-func (r *Request) GetBody() io.ReadCloser         { return r.Body }
-func (r *Request) GetHost() string                { return r.Host }
-func (r *Request) GetRequestURI() string          { return r.RequestURI }
-func (r *Request) GetPath() string                { return r.URL.Path }
-func (r *Request) GetMethod() string              { return r.Method }
-func (r *Request) GetProto() string               { return r.Proto }
-func (r *Request) GetHeader() map[string][]string { return r.Header }
-func (r *Request) GetContentLength() int64        { return r.ContentLength }
+func (r *Request) GetBody() io.ReadCloser  { return r.Body }
+func (r *Request) GetHost() string         { return r.Host }
+func (r *Request) GetRequestURI() string   { return r.RequestURI }
+func (r *Request) GetPath() string         { return r.URL.Path }
+func (r *Request) GetMethod() string       { return r.Method }
+func (r *Request) GetProto() string        { return r.Proto }
+func (r *Request) GetHeader() http.Header  { return http.Header(r.Header) }
+func (r *Request) GetContentLength() int64 { return r.ContentLength }
 
 // ProtoAtLeast reports whether the HTTP protocol used
 // in the request is at least major.minor.
@@ -403,17 +404,17 @@ var errMissingHost = errors.New("http: Request.Write on Request with no Host or 
 
 // extraHeaders may be nil
 // waitForContinue may be nil
-func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitForContinue func() bool) error {
+func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitForContinue func() bool) error {
 	// Find the target host. Prefer the Host: header, but if that
 	// is not given, use the host from the request BaseURL.
 	//
 	// Clean the host, in case it arrives with unexpected stuff in it.
-	host := cleanHost(req.Host)
+	host := cleanHost(r.Host)
 	if host == "" {
-		if req.URL == nil {
+		if r.URL == nil {
 			return errMissingHost
 		}
-		host = cleanHost(req.URL.Host)
+		host = cleanHost(r.URL.Host)
 	}
 
 	// According to RFC 6874, an HTTP client, proxy, or other
@@ -421,10 +422,10 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 	// to an outgoing URI.
 	host = removeZone(host)
 
-	ruri := req.URL.RequestURI()
-	if usingProxy && req.URL.Scheme != "" && req.URL.Opaque == "" {
-		ruri = req.URL.Scheme + "://" + host + ruri
-	} else if req.Method == "CONNECT" && req.URL.Path == "" {
+	ruri := r.URL.RequestURI()
+	if usingProxy && r.URL.Scheme != "" && r.URL.Opaque == "" {
+		ruri = r.URL.Scheme + "://" + host + ruri
+	} else if r.Method == "CONNECT" && r.URL.Path == "" {
 		// CONNECT requests normally give just the host and port, not a full BaseURL.
 		ruri = host
 	}
@@ -440,7 +441,7 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 		w = bw
 	}
 
-	_, err := fmt.Fprintf(w, "%s %s HTTP/1.1\r\n", valueOrDefault(req.Method, "GET"), ruri)
+	_, err := fmt.Fprintf(w, "%s %s HTTP/1.1\r\n", valueOrDefault(r.Method, "GET"), ruri)
 	if err != nil {
 		return err
 	}
@@ -454,8 +455,8 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 	// Use the defaultUserAgent unless the Header contains one, which
 	// may be blank to not send the header.
 	userAgent := defaultUserAgent
-	if _, ok := req.Header["User-Agent"]; ok {
-		userAgent = req.Header.Get("User-Agent")
+	if _, ok := r.Header["User-Agent"]; ok {
+		userAgent = r.Header.Get("User-Agent")
 	}
 	if userAgent != "" {
 		_, err = fmt.Fprintf(w, "User-Agent: %s\r\n", userAgent)
@@ -465,7 +466,7 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 	}
 
 	// Process Body,ContentLength,Close,Trailer
-	tw, err := newTransferWriter(req)
+	tw, err := newTransferWriter(r)
 	if err != nil {
 		return err
 	}
@@ -474,7 +475,7 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 		return err
 	}
 
-	err = req.Header.WriteSubset(w, reqWriteExcludeHeader)
+	err = r.Header.WriteSubset(w, reqWriteExcludeHeader)
 	if err != nil {
 		return err
 	}
@@ -501,7 +502,7 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 		}
 
 		if !waitForContinue() {
-			req.closeBody()
+			r.closeBody()
 			return nil
 		}
 	}

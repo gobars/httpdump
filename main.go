@@ -167,18 +167,18 @@ func (o *App) run() {
 	wg.Wait()
 }
 
-func (o *App) createAssembler(c context.Context, sender handler.Sender) util.Assembler {
+func (o *App) createAssembler(ctx context.Context, sender handler.Sender) util.Assembler {
 	switch o.Mode {
 	case "fast":
-		h := &handler.ConnectionHandlerFast{Option: o.handlerOption, Sender: sender}
+		h := &handler.ConnectionHandlerFast{Context: ctx, Option: o.handlerOption, Sender: sender}
 		return handler.NewTCPAssembler(h, o.Chan, o.IP, uint16(o.Port), o.Resp)
 	default:
-		return o.createTCPStdAssembler(c, sender)
+		return o.createTCPStdAssembler(ctx, sender)
 	}
 }
 
-func (o *App) createTCPStdAssembler(c context.Context, printer handler.Sender) *handler.TcpStdAssembler {
-	f := handler.NewFactory(c, o.handlerOption, printer)
+func (o *App) createTCPStdAssembler(ctx context.Context, printer handler.Sender) *handler.TcpStdAssembler {
+	f := handler.NewFactory(ctx, o.handlerOption, printer)
 	p := tcpassembly.NewStreamPool(f)
 	assembler := tcpassembly.NewAssembler(p)
 	return &handler.TcpStdAssembler{Assembler: assembler}
