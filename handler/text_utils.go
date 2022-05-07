@@ -9,19 +9,19 @@ import (
 	"golang.org/x/text/transform"
 )
 
-// mime type struct
-type mimeType struct {
+// MimeType type struct
+type MimeType struct {
 	Type    string
 	subType string
 	scope   string
 }
 
-// parse mime type
-func parseMimeType(contentTypeStr string) mimeType {
+// ParseMimeType parses mime type
+func ParseMimeType(contentTypeStr string) MimeType {
 	idx := strings.Index(contentTypeStr, "/")
 	if idx == -1 {
 		// should not happen
-		return mimeType{contentTypeStr, "", ""}
+		return MimeType{contentTypeStr, "", ""}
 	}
 	scope := ""
 	subType := contentTypeStr[idx+1:]
@@ -36,7 +36,7 @@ func parseMimeType(contentTypeStr string) mimeType {
 	if i > 0 {
 		subType = subType[:i]
 	}
-	return mimeType{contentTypeStr[:idx], subType, scope}
+	return MimeType{contentTypeStr[:idx], subType, scope}
 }
 
 // TODO: multipart/form-data
@@ -71,7 +71,7 @@ var textSubTypes = map[string]bool{
 }
 
 // if is text type mime
-func (ct mimeType) isTextContent() bool {
+func (ct MimeType) isTextContent() bool {
 	return textTypes[ct.Type] || textSubTypes[ct.subType]
 }
 
@@ -129,18 +129,17 @@ var (
 )
 
 // if is binary type mime
-func (ct mimeType) isBinaryContent() bool {
+func (ct MimeType) isBinaryContent() bool {
 	return binaryTypes[ct.Type] || binarySubtypes[ct.subType]
 }
 
-// read reader content to string, using charset specified
-func readWithCharset(reader io.Reader, charset string) ([]byte, error) {
+// ReadWithCharset read reader content to string, using charset specified
+func ReadWithCharset(reader io.Reader, charset string) ([]byte, error) {
 	charset = strings.ToUpper(charset)
-	if charset == "UTF-8" || charset == "UTF8" {
+	switch charset {
+	case "UTF-8", "UTF8":
 		return ioutil.ReadAll(reader)
-	}
-
-	if charset == "GBK" || charset == "GB2312" {
+	case "GBK", "GB2312":
 		charset = "GB18030"
 	}
 	encoder, err := htmlindex.Get(charset)
@@ -150,8 +149,8 @@ func readWithCharset(reader io.Reader, charset string) ([]byte, error) {
 	return ioutil.ReadAll(transform.NewReader(reader, encoder.NewDecoder()))
 }
 
-// parse content type to mimeType and charset
-func parseContentType(contentType string) (string, string) {
+// ParseContentType parse content type to MimeType and charset
+func ParseContentType(contentType string) (string, string) {
 	var mimeTypeStr, charset string
 	idx := strings.Index(contentType, ";")
 	if idx < 0 {

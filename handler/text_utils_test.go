@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseMimeType(t *testing.T) {
-	mimeType := parseMimeType("application/json")
+	mimeType := ParseMimeType("application/json")
 	assert.Equal(t, "application", mimeType.Type)
 	assert.Equal(t, "json", mimeType.subType)
 	assert.Equal(t, "", mimeType.scope)
@@ -16,7 +16,7 @@ func TestParseMimeType(t *testing.T) {
 }
 
 func TestParseXMimeType(t *testing.T) {
-	mimeType := parseMimeType("application/x-msdownload")
+	mimeType := ParseMimeType("application/x-msdownload")
 	assert.Equal(t, "application", mimeType.Type)
 	assert.Equal(t, "msdownload", mimeType.subType)
 	assert.Equal(t, "x", mimeType.scope)
@@ -25,7 +25,7 @@ func TestParseXMimeType(t *testing.T) {
 }
 
 func TestVndMimeType(t *testing.T) {
-	mimeType := parseMimeType("application/vnd.ms-powerpoint.template.macroenabled.12")
+	mimeType := ParseMimeType("application/vnd.ms-powerpoint.template.macroenabled.12")
 	assert.Equal(t, "application", mimeType.Type)
 	assert.Equal(t, "ms-powerpoint", mimeType.subType)
 	assert.Equal(t, "vnd", mimeType.scope)

@@ -125,34 +125,18 @@ type ReqBean struct {
 	Method     string
 	Host       string
 	Header     http.Header
-	Body       string
+	Body       string `json:",clearQuotes"`
 }
+
+var MaxBodySize = osx.EnvSize("MAX_BODY_SIZE", 4096)
 
 func ReadBody(h interface {
 	GetBody() io.ReadCloser
 	GetHeader() http.Header
 	GetContentLength() int64
 }) string {
-	var body io.ReadCloser
-	header := h.GetHeader()
-	if ct := header.Get("Content-Type"); ss.AnyOf(ct, "application/json") {
-		body = h.GetBody()
-	} else if l := int(h.GetContentLength()); l > 0 && l < osx.EnvSize("MAX_BODY_SIZE", 4096) {
-		body = h.GetBody()
-	}
-
-	if body != nil {
-		if ce := header.Get("Content-Encoding"); ce == "gzip" {
-			body = &httpport.GzipReader{Body: body}
-		} else if ce != "" {
-			body = nil
-		}
-	}
-
-	if body == nil {
-		return ""
-	}
-	return iox.ReadString(body)
+	_, data, _ := ReadTextBody(h.GetHeader(), h.GetBody(), int64(MaxBodySize))
+	return string(data)
 }
 
 func ReqToJSON(ctx context.Context, h Req, seq int32, src, dest, timestamp string) ([]byte, error) {
@@ -177,7 +161,7 @@ type RspBean struct {
 	Timestamp string
 
 	Header     http.Header
-	Body       string
+	Body       string `json:",clearQuotes"`
 	StatusCode int
 }
 
@@ -431,6 +415,46 @@ func parseContentLength(cl int64, header http.Header) int64 {
 	return contentLength
 }
 
+// ReadTextBody read http request/response body if it is text.
+func ReadTextBody(header http.Header, reader io.ReadCloser, limitSize int64) (MimeType, []byte, bool) {
+	// deal with content encoding such as gzip, deflate
+	nr, decompressed := util.TryDecompress(header, reader)
+	if decompressed {
+		defer iox.Close(nr)
+	}
+
+	// check mime type and charset
+	contentType := header.Get("Content-Type")
+	mimeTypeStr, charset := ParseContentType(contentType)
+	mt := ParseMimeType(mimeTypeStr)
+
+	if !mt.isTextContent() {
+		return mt, []byte("(binary)"), false
+	}
+
+	var (
+		err  error
+		body []byte
+	)
+
+	if limitSize > 0 {
+		nr = io.NopCloser(io.LimitReader(nr, limitSize))
+	}
+
+	if charset == "" {
+		body, err = io.ReadAll(nr)
+	} else {
+		body, err = ReadWithCharset(nr, charset)
+	}
+
+	if err != nil {
+		log.Printf("read body failed: %v", err)
+		return mt, []byte("(failed)"), false
+	}
+
+	return mt, body, true
+}
+
 // print http request/response body
 func (h *Base) printBody(b *bytes.Buffer, header http.Header, reader io.ReadCloser) {
 	// deal with content encoding such as gzip, deflate
@@ -441,30 +465,24 @@ func (h *Base) printBody(b *bytes.Buffer, header http.Header, reader io.ReadClos
 
 	// check mime type and charset
 	contentType := header.Get("Content-Type")
-	// if contentType == "" {
-	// TODO: detect content type using httpport.DetectContentType()
-	//}
-	mimeTypeStr, charset := parseContentType(contentType)
-	mt := parseMimeType(mimeTypeStr)
-	isText := mt.isTextContent()
-	isBinary := mt.isBinaryContent()
-
-	if !isText {
-		if err := h.printNonTextTypeBody(b, nr, contentType, isBinary); err != nil {
+	mimeTypeStr, charset := ParseContentType(contentType)
+	mt := ParseMimeType(mimeTypeStr)
+	if !mt.isTextContent() {
+		if err := h.printNonTextTypeBody(b, nr, contentType, mt.isBinaryContent()); err != nil {
 			writeLine(b, "{Read content error", err, "}")
 		}
 		return
 	}
 
-	var body []byte
-	var err error
+	var (
+		err  error
+		body []byte
+	)
+
 	if charset == "" {
-		// response do not set charset, try to detect
-		if data, err := io.ReadAll(nr); err == nil {
-			body = data
-		}
+		body, err = io.ReadAll(nr)
 	} else {
-		body, err = readWithCharset(nr, charset)
+		body, err = ReadWithCharset(nr, charset)
 	}
 	if err != nil {
 		writeLine(b, "{Read body failed", err, "}")

@@ -345,29 +345,18 @@ var hexTable = [128]byte{
 }
 
 func TryDecompress(header http.Header, reader io.ReadCloser) (io.ReadCloser, bool) {
-	contentEncoding := header.Get("Content-Encoding")
-	var nr io.ReadCloser
 	var err error
-	if contentEncoding == "" {
-		// do nothing
-		return reader, false
-	}
-
-	if strings.Contains(contentEncoding, "gzip") {
+	nr := reader
+	switch c := header.Get("Content-Encoding"); c {
+	case "gzip":
 		nr, err = gzip.NewReader(reader)
-		if err != nil {
-			return reader, false
-		}
-		return nr, true
-	}
-
-	if strings.Contains(contentEncoding, "deflate") {
+		header.Del("Content-Encoding")
+		header.Del("Content-Length")
+	case "deflate":
 		nr, err = zlib.NewReader(reader)
-		if err != nil {
-			return reader, false
-		}
-		return nr, true
+		header.Del("Content-Encoding")
+		header.Del("Content-Length")
 	}
 
-	return reader, false
+	return nr, err == nil
 }
