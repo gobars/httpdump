@@ -3,6 +3,7 @@ package handler
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -390,6 +391,10 @@ const (
 	TagResponse Tag = "RSP"
 )
 
+func isEOF(e error) bool {
+	return e != nil && (errors.Is(e, io.EOF) || errors.Is(e, io.ErrUnexpectedEOF))
+}
+
 func (h *Base) handleError(err error, t time.Time, tag Tag) {
 	var seq int32
 	if tag == TagRequest {
@@ -399,7 +404,7 @@ func (h *Base) handleError(err error, t time.Time, tag Tag) {
 	}
 	k := h.key
 	tim := t.Format(time.RFC3339Nano)
-	if IsEOF(err) {
+	if isEOF(err) {
 		msg := fmt.Sprintf("\n### EOF#%d %s %s-%s %s", seq, tag, k.Src(), k.Dst(), tim)
 		h.sender.Send(msg, false)
 	} else {

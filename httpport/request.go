@@ -71,7 +71,6 @@ var reqWriteExcludeHeader = map[string]bool{
 // usage. In addition to the notes on the fields below, see the
 // documentation for Request.Write and RoundTripper.
 type Request struct {
-
 	// the first request line
 	RequestLine string
 	// raw header line

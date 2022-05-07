@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -122,10 +121,6 @@ func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
 
 		h.processResponse(true, &HttpRsp{Response: r}, h.option, now)
 	}
-}
-
-func IsEOF(e error) bool {
-	return e != nil && (errors.Is(e, io.EOF) || errors.Is(e, io.ErrUnexpectedEOF))
 }
 
 func (f *Factory) runRequests(key *streamKey, buf *bufio.Reader) {
