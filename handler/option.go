@@ -4,6 +4,8 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"golang.org/x/time/rate"
+
 	"github.com/bingoohuang/httpdump/util"
 )
 
@@ -13,17 +15,18 @@ const (
 )
 
 type Option struct {
-	Resp     bool
-	Host     string
-	Uri      string
-	Method   string
-	Status   util.IntSetFlag
-	Level    string
-	DumpBody string
-	dumpNum  uint32
-	DumpMax  uint32
-	Force    bool
-	Curl     bool
+	Resp        bool
+	Host        string
+	Uri         string
+	Method      string
+	Status      util.IntSetFlag
+	Level       string
+	DumpBody    string
+	dumpNum     uint32
+	DumpMax     uint32
+	Force       bool
+	Curl        bool
+	RateLimiter *rate.Limiter
 }
 
 func (o *Option) CanDump() bool {

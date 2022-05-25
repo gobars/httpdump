@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/bingoohuang/gg/pkg/netx/freeport"
 	"github.com/bingoohuang/gg/pkg/osx"
 
@@ -52,6 +54,10 @@ func main() {
 		DumpMax:  app.dumpMax,
 		Force:    app.Force,
 		Curl:     app.Curl,
+	}
+
+	if app.Rate > 0 {
+		app.handlerOption.RateLimiter = rate.NewLimiter(rate.Every(time.Duration(1e6/(app.Rate))*time.Microsecond), 1)
 	}
 	app.run()
 }
@@ -108,6 +114,8 @@ type App struct {
 	File string `flag:"f" usage:"File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll"`
 
 	Pprof string `usage:"pprof address to listen on, not activate pprof if empty, eg. :6060"`
+
+	Rate float64 `usage:"rate limit output per second"`
 
 	handlerOption *handler.Option
 }

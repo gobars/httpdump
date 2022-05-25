@@ -209,13 +209,13 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 		// permitsMethod := h.option.PermitsMethod(method)
 		// http1EndHint := util.Http1EndHint(rb.Bytes())
 		// log.Printf("rb.Len(): %d, permitsMethod: %t, http1EndHint: %t", rb.Len(), permitsMethod, http1EndHint)
-		if rb.Len() > 0 && h.option.PermitsMethod(method) && util.Http1EndHint(rb.Bytes()) {
+		if rb.Len() > 0 && h.option.PermitsMethod(method) && util.Http1EndHint(rb.Bytes()) && h.LimitAllow() {
 			h.dealRequest(rb, h.option, c)
 			rb.Reset()
 		}
 	}
 
-	if rb.Len() > 0 && h.option.PermitsMethod(method) {
+	if rb.Len() > 0 && h.option.PermitsMethod(method) && h.LimitAllow() {
 		h.dealRequest(rb, h.option, c)
 	}
 
@@ -241,10 +241,14 @@ func (h *Base) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 		}
 
 		rb.Write(p.Payload)
-		if rb.Len() > 0 && h.option.PermitsCode(lastCode) && util.Http1EndHint(rb.Bytes()) {
+		if rb.Len() > 0 && h.option.PermitsCode(lastCode) && util.Http1EndHint(rb.Bytes()) && h.LimitAllow() {
 			h.dealResponse(rb, h.option, c)
 			rb.Reset()
 		}
+	}
+
+	if rb.Len() > 0 && h.option.PermitsCode(lastCode) && h.LimitAllow() {
+		h.dealResponse(rb, h.option, c)
 	}
 
 	h.handleError(io.EOF, c.lastRspTimestamp, TagResponse)
@@ -549,6 +553,11 @@ func (h *Base) handleError(err error, t time.Time, tag Tag) {
 		h.sender.Send(msg, false)
 		_, _ = fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", tag, err)
 	}
+}
+
+func (h *Base) LimitAllow() bool {
+	l := h.option.RateLimiter
+	return l == nil || l.Allow()
 }
 
 // DumpBody write all data from a reader, to a file.
