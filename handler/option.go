@@ -27,6 +27,7 @@ type Option struct {
 	Force       bool
 	Curl        bool
 	RateLimiter *rate.Limiter
+	Eof         bool
 }
 
 func (o *Option) CanDump() bool {

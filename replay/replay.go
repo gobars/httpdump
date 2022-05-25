@@ -51,13 +51,16 @@ func (c *Config) StartReplay(ctx context.Context, payloadCh <-chan string) error
 		return c.processGlob(options)
 	}
 
-	for payload := range payloadCh {
-		if err := options.ReadPayloads(strings.NewReader(payload)); err != nil {
-			log.Printf("E! failed to read payloads, error: %v", err)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case payload := <-payloadCh:
+			if err := options.ReadPayloads(strings.NewReader(payload)); err != nil {
+				log.Printf("E! failed to read payloads, error: %v", err)
+			}
 		}
 	}
-
-	return nil
 }
 
 func (c *Config) processTail(ctx context.Context, parseOptions *Options) error {

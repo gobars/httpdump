@@ -546,8 +546,10 @@ func (h *Base) handleError(err error, t time.Time, tag Tag) {
 	k := h.key
 	tim := t.Format(time.RFC3339Nano)
 	if isEOF(err) {
-		msg := fmt.Sprintf("\n### EOF#%d %s %s-%s %s", seq, tag, k.Src(), k.Dst(), tim)
-		h.sender.Send(msg, false)
+		if h.option.Eof {
+			msg := fmt.Sprintf("\n### EOF#%d %s %s-%s %s", seq, tag, k.Src(), k.Dst(), tim)
+			h.sender.Send(msg, false)
+		}
 	} else {
 		msg := fmt.Sprintf("\n### ERR#%d %s %s-%s %s, error: %v", seq, tag, k.Src(), k.Dst(), tim, err)
 		h.sender.Send(msg, false)

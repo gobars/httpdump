@@ -56,3 +56,7 @@ idle: 4m
 
 #  pprof string  usage: pprof address to listen on, not activate pprof if empty, eg. :6060
 #pprof: :6060
+
+
+# output EOF connection info or not.
+eof: true

@@ -4,18 +4,19 @@ go 1.18
 
 require (
 	github.com/AndrewBurian/eventsource v1.1.0
-	github.com/bingoohuang/gg v0.0.0-20220507065125-6fc3fdf8b7fe
-	github.com/bingoohuang/golog v0.0.0-20220419071623-16dcc2aaef54
-	github.com/bingoohuang/jj v0.0.0-20220412145720-b1b21edc309f
+	github.com/bingoohuang/gg v0.0.0-20220523092638-71789aa827e3
+	github.com/bingoohuang/golog v0.0.0-20220510063034-c86bf97d307f
+	github.com/bingoohuang/jj v0.0.0-20220513123231-e3092785c925
 	github.com/bmatcuk/doublestar/v3 v3.0.0
 	github.com/gobwas/glob v0.2.3
 	github.com/google/gopacket v1.1.19
 	github.com/influxdata/tail v1.0.0
 	github.com/stretchr/testify v1.7.1
-	go.uber.org/multierr v1.8.0
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/text v0.3.7
+	go.uber.org/multierr v1.6.0
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+	golang.org/x/text v0.3.6
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
+
 )
 
 require (
@@ -48,5 +49,5 @@ require (
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 )

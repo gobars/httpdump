@@ -54,6 +54,7 @@ func main() {
 		DumpMax:  app.dumpMax,
 		Force:    app.Force,
 		Curl:     app.Curl,
+		Eof:      app.Eof,
 	}
 
 	if app.Rate > 0 {
@@ -93,6 +94,7 @@ type App struct {
 	Force      bool   `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl       bool   `usage:"Output an equivalent curl command for each http request"`
 	Version    bool   `flag:"v" usage:"Print version info and exit"`
+	Eof        bool   `val:"true" usage:"Output EOF connection info or not."`
 
 	DumpBody string   `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
 	Mode     string   `val:"fast" usage:"std/fast"`
@@ -121,7 +123,7 @@ type App struct {
 }
 
 func (o *App) run() {
-	c, _ := sigx.RegisterSignals(nil)
+	ctx, _ := sigx.RegisterSignals(nil)
 	sigx.RegisterSignalProfile()
 	wg := &sync.WaitGroup{}
 
@@ -132,10 +134,10 @@ func (o *App) run() {
 	senders := make(handler.Senders, 0, len(o.Output))
 	for _, out := range o.Output {
 		if addr, ok := rest.MaybeURL(out); ok {
-			senders = append(senders, replay.CreateSender(c, wg, o.Method, o.File, o.Verbose, addr, o.OutChan))
+			senders = append(senders, replay.CreateSender(ctx, wg, o.Method, o.File, o.Verbose, addr, o.OutChan))
 		} else {
 			senders = append(senders, rotate.NewQueueWriter(out,
-				rotate.WithContext(c), rotate.WithOutChanSize(int(o.OutChan)), rotate.WithAppend(true)))
+				rotate.WithContext(ctx), rotate.WithOutChanSize(int(o.OutChan)), rotate.WithAppend(true)))
 		}
 	}
 
@@ -168,9 +170,10 @@ func (o *App) run() {
 		if err != nil {
 			panic(err)
 		}
-		util.LoopPackets(c, packets, o.createAssembler(c, senders), o.Idle)
+		util.LoopPackets(ctx, packets, o.createAssembler(ctx, senders), o.Idle)
 	}
 
+	<-ctx.Done()
 	_ = senders.Close()
 	wg.Wait()
 }
