@@ -2,7 +2,7 @@
 #printConfig = true
 #passphrase="xxxx"
 
-group = "1"
+# group = "1"
 
 hosts = [
     "192.168.126.182 footstone/{PBE}BX6qwkwV8yF-dBwoM4K7P4qK4ege4mhz id=1 group=1",
@@ -22,13 +22,12 @@ cmds = [
     "rm -fr bingoohuang/@App*",
     "%ul ../@App.tar.gz bingoohuang/",
     "cd bingoohuang && tar zxf @App.tar.gz && cd @App",
-    "%host-1 make install",
-#    "%host-2 export GOPROXY=https://goproxy.cn; go install -ldflags=\"-s -w\" ./...",
+    "make install",
     "which @App => @Which",
     "upx --best --lzma  @Which",
     "ls -lh @Which",
     "@App -v",
-    "%local rm -fr ~/Documents/@App",
-    "%dl @Which ~/Documents",
-    "%local ls -lh ~/Documents/@App",
+    "%local rm -fr ~/go/bin/linux_amd64/@App",
+    "%dl @Which ~/go/bin/linux_amd64/",
+    "%local ls -lh ~/go/bin/linux_amd64/@App",
 ]
