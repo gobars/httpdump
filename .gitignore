@@ -11,3 +11,4 @@ bbb*.http
 /log*
 /*.profile
 /git.commit
+/git.branch
