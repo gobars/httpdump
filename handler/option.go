@@ -15,7 +15,6 @@ const (
 )
 
 type Option struct {
-	Resp        bool
 	Host        string
 	Uri         string
 	Method      string
@@ -24,10 +23,12 @@ type Option struct {
 	DumpBody    string
 	dumpNum     uint32
 	DumpMax     uint32
+	Resp        bool
 	Force       bool
 	Curl        bool
-	RateLimiter *rate.Limiter
 	Eof         bool
+	Debug       bool
+	RateLimiter *rate.Limiter
 }
 
 func (o *Option) CanDump() bool {

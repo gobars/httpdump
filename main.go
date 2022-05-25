@@ -55,6 +55,7 @@ func main() {
 		Force:    app.Force,
 		Curl:     app.Curl,
 		Eof:      app.Eof,
+		Debug:    app.Debug,
 	}
 
 	if app.Rate > 0 {
@@ -95,6 +96,7 @@ type App struct {
 	Curl       bool   `usage:"Output an equivalent curl command for each http request"`
 	Version    bool   `flag:"v" usage:"Print version info and exit"`
 	Eof        bool   `val:"true" usage:"Output EOF connection info or not."`
+	Debug      bool   `usage:"Enable debugging."`
 
 	DumpBody string   `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
 	Mode     string   `val:"fast" usage:"std/fast"`
@@ -170,7 +172,7 @@ func (o *App) run() {
 		if err != nil {
 			panic(err)
 		}
-		util.LoopPackets(ctx, packets, o.createAssembler(ctx, senders), o.Idle)
+		go util.LoopPackets(ctx, packets, o.createAssembler(ctx, senders), o.Idle)
 	}
 
 	<-ctx.Done()

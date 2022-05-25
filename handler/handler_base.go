@@ -26,7 +26,6 @@ import (
 
 	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/httpdump/httpport"
-	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
 // ConnectionHandler is interface for handle tcp connection
@@ -226,10 +225,6 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 func (h *Base) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 	defer wg.Done()
 	defer iox.Close(c.responseStream)
-	if !h.option.Resp {
-		c.responseStream.DiscardAll()
-		return
-	}
 
 	rb := &bytes.Buffer{}
 	var lastCode int
@@ -241,6 +236,7 @@ func (h *Base) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 		}
 
 		rb.Write(p.Payload)
+
 		if rb.Len() > 0 && h.option.PermitsCode(lastCode) && util.Http1EndHint(rb.Bytes()) && h.LimitAllow() {
 			h.dealResponse(rb, h.option, c)
 			rb.Reset()
@@ -264,6 +260,12 @@ func (h *Base) dealRequest(rb *bytes.Buffer, o *Option, c *TCPConnection) {
 }
 
 func (h *Base) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("E! recover: %+v", err)
+		}
+	}()
+
 	h.rspBuffer.Reset()
 	if r, err := httpport.ReadResponse(bufio.NewReader(rb), nil); err != nil {
 		h.handleError(err, c.lastRspTimestamp, TagResponse)
@@ -303,8 +305,7 @@ func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time
 
 	if o.Status.Contains(r.GetStatusCode()) {
 		if h.usingJSON {
-			data, err := RspToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(),
-				endTime.Format(time.RFC3339Nano))
+			data, err := RspToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano))
 			if err != nil {
 				log.Printf("req to JSON  failed: %v", err)
 			}
@@ -363,8 +364,6 @@ func (h *Base) printRequest(r Req, startTime time.Time, seq int32) {
 
 // print http response
 func (h *Base) printResponse(r Rsp, endTime time.Time, seq int32) {
-	defer discardAll(r.GetBody())
-
 	b := &h.rspBuffer
 
 	writeLine(b, fmt.Sprintf("\n### #%d RSP %s-%s %s",
@@ -372,7 +371,7 @@ func (h *Base) printResponse(r Rsp, endTime time.Time, seq int32) {
 
 	writeLine(b, r.GetStatusLine())
 	o := h.option
-	if !o.Resp || o.Level == LevelUrl {
+	if o.Level == LevelUrl {
 		return
 	}
 
@@ -513,8 +512,9 @@ func (h *Base) printNonTextTypeBody(b *bytes.Buffer, reader io.Reader, contentTy
 	return nil
 }
 
-func discardAll(r io.Reader) (discarded int) {
-	return tcpreader.DiscardBytesToEOF(r)
+func discardAll(r io.Reader) int64 {
+	n, _ := io.Copy(io.Discard, r)
+	return n
 }
 
 func bodyFileName(prefix string, seq int32, req string, t time.Time) string {
