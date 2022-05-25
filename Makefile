@@ -25,6 +25,10 @@ gobin := $(shell go env GOBIN)
 # try $GOPATN/bin if $gobin is empty
 gobin := $(if $(gobin),$(gobin),$(shell go env GOPATH)/bin)
 
+export GOPROXY=https://mirrors.aliyun.com/goproxy/,https://goproxy.cn,https://goproxy.io,direct
+# Active module mode, as we use go modules to manage dependencies
+export GO111MODULE=on
+
 git.commit:
 	echo ${gitCommit} > git.commit
 	echo ${gitBranch} > git.branch
@@ -37,7 +41,6 @@ sec:
 	@echo "[OK] Go security check was completed!"
 
 init:
-	export GOPROXY=https://goproxy.cn
 
 lint-all:
 	golangci-lint run --enable-all
