@@ -74,7 +74,7 @@ type App struct {
 
 	IP   string `usage:"Filter by ip, if either src or dst ip is matched, the packet will be processed"`
 	Port uint   `usage:"Filter by port, if either source or target port is matched, the packet will be processed"`
-	Bpf  string `usage:"Customized bpf, if it is set, -ip -port will be suppressed"`
+	Bpf  string `usage:"Customized bpf, if it is set, -ip -port will be suppressed, e.g. tcp and ((dst host 1.2.3.4 and port 80) || (src host 1.2.3.4 and src port 80))"`
 
 	Chan    uint `val:"10240" usage:"Channel size to buffer tcp packets"`
 	OutChan uint `val:"40960" usage:"Output channel size to buffer tcp packets"`
