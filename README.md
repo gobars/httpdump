@@ -193,3 +193,10 @@ $ sudo PRINT_JSON=Y httpdump -i lo0 -port 5003 -resp -level all
 {"seq":1,"src":"127.0.0.1:49718","dest":"127.0.0.1:5003","timestamp":"2022-05-07T23:27:40.348368+08:00","requestUri":"/echo","method":"POST","host":"127.0.0.1:5003","header":{"Accept":["application/json"],"Accept-Encoding":["gzip, deflate"],"Content-Length":["27"],"Content-Type":["application/json"],"Gurl-Date":["Sat, 07 May 2022 15:27:40 GMT"],"Host":["127.0.0.1:5003"],"User-Agent":["gurl/1.0.0"]},"body":{"age":10,"name":"bingoo"}}
 {"seq":1,"src":"127.0.0.1:49718","dest":"127.0.0.1:5003","timestamp":"2022-05-07T23:27:40.348461+08:00","header":{"Content-Type":["application/json; charset=utf-8"],"Date":["Sat, 07 May 2022 15:27:40 GMT"],"Vary":["Accept-Encoding"]},"body":{"Ua-Bot":false,"Ua-Browser":"gurl","Ua-BrowserVersion":"1.0.0","Ua-Engine":"","Ua-EngineVersion":"","Ua-Localization":"","Ua-Mobile":false,"Ua-Mozilla":"","Ua-OS":"","Ua-OSInfo":{"FullName":"","Name":"","Version":""},"Ua-Platform":"","headers":{"Accept":"application/json","Accept-Encoding":"gzip, deflate","Content-Length":"27","Content-Type":"application/json","Gurl-Date":"Sat, 07 May 2022 15:27:40 GMT","User-Agent":"gurl/1.0.0"},"host":"127.0.0.1:5003","method":"POST","payload":{"age":10,"name":"bingoo"},"proto":"HTTP/1.1","remoteAddr":"127.0.0.1:49718","requestUri":"/echo","timeGo":"2022-05-07 23:27:40.3473","timeTo":"2022-05-07 23:27:40.3473","url":"/echo"},"statusCode":200}
 ```
+
+## Environment Variables
+
+| \#  | Name          | Default | Meaning               | Changing                |
+|-----|---------------|---------|-----------------------|-------------------------|
+| 1   | MAX_BODY_SIZE | 4K      | Max HTTP body to read | export MAX_BODY_SIZE=4M |
+
