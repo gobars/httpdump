@@ -469,8 +469,7 @@ func (h *Base) printBody(b *bytes.Buffer, header http.Header, reader io.ReadClos
 	// check mime type and charset
 	contentType := header.Get("Content-Type")
 	mimeTypeStr, charset := ParseContentType(contentType)
-	mt := ParseMimeType(mimeTypeStr)
-	if !mt.isTextContent() {
+	if mt := ParseMimeType(mimeTypeStr); !mt.isTextContent() {
 		if err := h.printNonTextTypeBody(b, nr, contentType, mt.isBinaryContent()); err != nil {
 			writeLine(b, "{Read content error", err, "}")
 		}
@@ -498,7 +497,7 @@ func (h *Base) printBody(b *bytes.Buffer, header http.Header, reader io.ReadClos
 }
 
 func (h *Base) printNonTextTypeBody(b *bytes.Buffer, reader io.Reader, contentType string, isBinary bool) error {
-	if h.option.Force && !isBinary {
+	if h.option.Force || !isBinary {
 		data, err := ioutil.ReadAll(reader)
 		if err != nil {
 			return err
