@@ -133,7 +133,8 @@ func ReadBody(h interface {
 	GetBody() io.ReadCloser
 	GetHeader() http.Header
 	GetContentLength() int64
-}) string {
+},
+) string {
 	_, data, _ := ReadTextBody(h.GetHeader(), h.GetBody(), int64(MaxBodySize))
 	return string(data)
 }

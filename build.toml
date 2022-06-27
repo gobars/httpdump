@@ -17,6 +17,7 @@ globalRemote = true
 
 cmds = [
     "%local basename $PWD => @App",
+    "%local rm -fr vendor && go mod download && go mod vendor",
     "%local make git.commit",
     "%local make targz",
     "rm -fr bingoohuang/@App*",

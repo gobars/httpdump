@@ -144,10 +144,10 @@ httpdump -ip 101.201.170.152 -port 80 # filter by ip and port
 ## 部署
 
 1. 查看版本：`./httpdump -v` 最新版本是：httpdump v1.2.7 2021-06-21 14:13:46
-1. 生成启停命令文件 和 样例 yml 配置文件  `./httpdump -init`
-2. 编辑 yml 配置文件 `httpdump.yml`，调整取值
-3. ./ctl help 查看帮助， `./ctl start` 启动
-4. 限制CPU在2个核上共占20% 启动 `LIMIT_CPU=20 LIMIT_CORES=2 ./ctl start`，（需要linux安装了cgroups包)
+2. 生成启停命令文件 和 样例 yml 配置文件  `./httpdump -init`
+3. 编辑 yml 配置文件 `httpdump.yml`，调整取值
+4. ./ctl help 查看帮助， `./ctl start` 启动
+5. 限制CPU在2个核上共占20% 启动 `LIMIT_CPU=20 LIMIT_CORES=2 ./ctl start`，（需要linux安装了cgroups包)
 
 httpdump.yml 配置示例:
 

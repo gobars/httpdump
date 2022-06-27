@@ -6,8 +6,11 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/ss"
 
 	"github.com/bingoohuang/gg/pkg/rest"
 )
@@ -62,7 +65,7 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 		return nil, err
 	}
 	// we don't send CONNECT or OPTIONS request
-	if req.Method == http.MethodConnect {
+	if ss.AnyOf(req.Method, http.MethodConnect, http.MethodOptions) {
 		return nil, nil
 	}
 	if c.Methods != "" && !strings.Contains(c.Methods, req.Method) {
@@ -73,10 +76,14 @@ func (c *HTTPClient) Send(data []byte) (*SendResponse, error) {
 	if req.Header.Get("X-Goreplay-Output") == "1" {
 		return nil, nil
 	}
+
+	baseURL := *c.BaseURL
+	baseURL.Path = path.Join(baseURL.Path, req.URL.Path)
+	baseURL.RawPath = req.URL.RawPath
+
 	req.Header.Set("X-Goreplay-Output", "1")
 	req.Host = c.BaseURL.Host
-	req.URL.Host = c.BaseURL.Host
-	req.URL.Scheme = c.BaseURL.Scheme
+	req.URL = &baseURL
 
 	// force connection to not be closed, which can affect the global client
 	req.Close = false
