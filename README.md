@@ -200,3 +200,73 @@ $ sudo PRINT_JSON=Y httpdump -i lo0 -port 5003 -resp -level all
 |-----|---------------|---------|-----------------------|-------------------------|
 | 1   | MAX_BODY_SIZE | 4K      | Max HTTP body to read | export MAX_BODY_SIZE=4M |
 
+## `application/x-www-form-urlencoded` supported
+
+1. `httplive -p 5004`
+2. `httpdump -port 5004 -resp`
+
+```sh
+### #2 REQ 60.247.93.190:10713-10.0.24.15:5004 2022-06-27T10:19:53.552086+08:00
+POST /form HTTP/1.1
+Accept-Language: zh-CN,zh;q=0.9
+Content-Length: 93
+Content-Type: application/x-www-form-urlencoded
+Origin: http://d5k.co:5004
+Referer: http://d5k.co:5004/form
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.0.0 Safari/537.36
+Accept: */*
+Host: d5k.co:5004
+Proxy-Connection: keep-alive
+Dnt: 1
+Accept-Encoding: gzip, deflate
+
+firstName=bingoo&lastName=huang&email=bingoo.huang%40gmail.com&city=beijing&state=CA&terms=on
+### #2 RSP 60.247.93.190:10713-10.0.24.15:5004 2022-06-27T10:19:53.552606+08:00
+HTTP/1.1 200 OK
+Content-Encoding: gzip
+Content-Type: application/json; charset=utf-8
+Vary: Accept-Encoding
+Date: Mon, 27 Jun 2022 02:19:53 GMT
+Content-Length: 136
+
+{"Form":{"city":["beijing"],"email":["bingoo.huang@gmail.com"],"firstName":["bingoo"],"lastName":["huang"],"state":["CA"],"terms":["on"]},"Status":"OK"}
+```
+
+## `Content-Type: multipart/form-data;` supported
+
+1. `httplive -p 5004`
+2. `httpdump -port 5004 -resp -force`
+
+```sh
+[root@VM-24-15-centos d5k]# go/bin/httpdump -port 5004 -resp -force
+### #1 REQ 60.247.93.190:15271-10.0.24.15:5004 2022-06-27T11:16:24.834517+08:00
+POST /upload/ HTTP/1.1
+Dnt: 1
+Host: d5k.co:5004
+Accept-Language: zh-CN,zh;q=0.9
+Proxy-Connection: keep-alive
+Referer: http://d5k.co:5004/upload/
+Content-Length: 183
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryEIfowGQePgSXlNHa
+Accept-Encoding: gzip, deflate
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.0.0 Safari/537.36
+Accept: */*
+Origin: http://d5k.co:5004
+
+------WebKitFormBoundaryEIfowGQePgSXlNHa
+Content-Disposition: form-data; name="file"; filename="u.txt"
+Content-Type: text/plain
+
+abc
+
+------WebKitFormBoundaryEIfowGQePgSXlNHa--
+### #1 RSP 60.247.93.190:15271-10.0.24.15:5004 2022-06-27T11:16:24.830528+08:00
+HTTP/1.1 200 OK
+Content-Encoding: gzip
+Content-Type: application/json; charset=utf-8
+Vary: Accept-Encoding
+Date: Mon, 27 Jun 2022 03:16:24 GMT
+Content-Length: 167
+
+{"Files":["u.txt"],"FileSizes":["4B"],"TotalSize":"4B","Cost":"78.195µs","Start":"Mon, 27 Jun 2022 03:16:24 GMT","End":"Mon, 27 Jun 2022 03:16:24 GMT","MaxTempMemory":"16.8MB","LimitSize":"10.5MB"}
+```
