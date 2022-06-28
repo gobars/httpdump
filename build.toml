@@ -5,8 +5,9 @@
 # group = "1"
 
 hosts = [
-    "192.168.126.182 footstone/{PBE}BX6qwkwV8yF-dBwoM4K7P4qK4ege4mhz id=1 group=1",
-    "d5k.co d5k:{PBE}0nZXJnR3ZeL3z3GYQbQwV6BtPkd0GbEl id=2 group=2",
+    "192.168.126.182 footstone/{PBE}BX6qwkwV8yF-dBwoM4K7P4qK4ege4mhz id=1 group=1 @ARCH=amd64",
+    "d5k.co d5k:{PBE}0nZXJnR3ZeL3z3GYQbQwV6BtPkd0GbEl id=2 group=2 @ARCH=amd64",
+    "124.71.131.248:2182 root/{PBE}x8ScQ2JVKbxZAH3PiZMgd6uzkI3J9rX9 id=3 group=3 @ARCH=arm64",
 ]
 
 # exec mode(0: cmd by cmd, 1 host by host)
@@ -20,15 +21,15 @@ cmds = [
     "%local rm -fr vendor && go mod download && go mod vendor",
     "%local make git.commit",
     "%local make targz",
-    "rm -fr bingoohuang/@App*",
+    "mkdir -p bingoohuang && rm -fr bingoohuang/@App*",
     "%ul ../@App.tar.gz bingoohuang/",
     "cd bingoohuang && tar zxf @App.tar.gz && cd @App",
     "make install",
     "which @App => @Which",
-    "upx --best --lzma  @Which",
+    # "upx --best --lzma  @Which",
     "ls -lh @Which",
     "@App -v",
-    "%local rm -fr ~/go/bin/linux_amd64/@App",
-    "%dl @Which ~/go/bin/linux_amd64/",
-    "%local ls -lh ~/go/bin/linux_amd64/@App",
+    "%local rm -fr ~/go/bin/linux_@ARCH/@App",
+    "%dl @Which ~/go/bin/linux_@ARCH/",
+    "%local ls -lh ~/go/bin/linux_@ARCH/@App",
 ]

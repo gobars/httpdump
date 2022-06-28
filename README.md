@@ -16,8 +16,9 @@ Build httpdump requires libpcap-dev and cgo enabled.
 1. for centos/redhat/fedora: `sudo yum install libpcap-devel`
 1. for osx: Libpcap and header files should be available in macOS already.
 1. install libpcap from source
+   1. Fetch libpcap dependencies. Depending on your OS, instead of `apt` you will use `yum` or `rpm`, or `brew` on Mac. `sudo apt-get install flex bison -y`
    1. download `gurl https://www.tcpdump.org/release/libpcap-1.10.1.tar.gz`
-   2. install `tar zxf libpcap-1.10.1.tar.gz && cd libpcap-1.10.1 && ./configure && make install`
+   1. install `tar zxf libpcap-1.10.1.tar.gz && cd libpcap-1.10.1 && ./configure && make install`
 
 ### Install
 
