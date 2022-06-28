@@ -27,19 +27,16 @@ type TCPAssembler struct {
 	lock        handy.Lock
 	connections map[string]*TCPConnection
 	handler     ConnectionHandler
-	filterIP    string
-	filterPort  uint16
+
 	chanSize    uint
 	processResp bool
 }
 
-func NewTCPAssembler(handler ConnectionHandler, chanSize uint, filterIP string, filterPort uint16, processResp bool) *TCPAssembler {
+func NewTCPAssembler(handler ConnectionHandler, chanSize uint, processResp bool) *TCPAssembler {
 	return &TCPAssembler{
 		connections: map[string]*TCPConnection{},
 		handler:     handler,
 		chanSize:    chanSize,
-		filterIP:    filterIP,
-		filterPort:  filterPort,
 		processResp: processResp,
 	}
 }
@@ -47,10 +44,6 @@ func NewTCPAssembler(handler ConnectionHandler, chanSize uint, filterIP string, 
 func (r *TCPAssembler) Assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
 	src := Endpoint{ip: flow.Src().String(), port: uint16(tcp.SrcPort)}
 	dst := Endpoint{ip: flow.Dst().String(), port: uint16(tcp.DstPort)}
-
-	if r.shouldDrop(src, dst) {
-		return
-	}
 
 	key := r.createConnectionKey(src, dst)
 	createNewConn := tcp.SYN && !tcp.ACK || isHTTPRequestData(tcp.Payload)
@@ -76,18 +69,7 @@ func (r *TCPAssembler) createConnectionKey(src Endpoint, dst Endpoint) string {
 	return dstString + "-" + srcString
 }
 
-func (r *TCPAssembler) shouldDrop(src, dst Endpoint) (dropped bool) {
-	if r.filterIP != "" && src.ip != r.filterIP && dst.ip != r.filterIP {
-		return true
-	}
-	if r.filterPort > 0 && src.port != r.filterPort && dst.port != r.filterPort {
-		return true
-	}
-
-	return false
-}
-
-// retrieveConnection get connection this packet belong to; create new one if is new connection.
+// retrieveConnection get connection this packet belongs to; create new one if is new connection.
 func (r *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bool) *TCPConnection {
 	defer r.lock.LockDeferUnlock()()
 

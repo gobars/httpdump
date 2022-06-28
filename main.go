@@ -38,7 +38,7 @@ func (App) VersionInfo() string { return v.Version() }
 
 func main() {
 	app := &App{}
-	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"),
+	flagparse.Parse(app, flagparse.AutoLoadYaml("c", ""),
 		flagparse.ProcessInit(&initAssets))
 
 	defer golog.Setup().OnExit()
@@ -78,8 +78,8 @@ type App struct {
 	Level  string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
 	Input  string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 
-	IP   string `usage:"Filter by ip, if either src or dst ip is matched, the packet will be processed"`
-	Port uint   `usage:"Filter by port, if either source or target port is matched, the packet will be processed"`
+	IP   string `usage:"Filter by ip, or ip range like 1.1.1.1-1.1.1.3, or multiple ip like 1.1.1.1,1.1.1.3, if either src or dst ip is matched, the packet will be processed"`
+	Port string `usage:"Filter by port, or port range like 8001-8003, or multiple ports like 8001,8003, if either source or target port is matched, the packet will be processed"`
 	N    int32  `usage:"Max Requests and Responses captured, and then exits"`
 	Bpf  string `usage:"Customized bpf, if it is set, -ip -port will be suppressed, e.g. tcp and ((dst host 1.2.3.4 and port 80) || (src host 1.2.3.4 and src port 80))"`
 
@@ -198,7 +198,7 @@ func (o *App) createAssembler(ctx context.Context, sender handler.Sender) util.A
 	switch o.Mode {
 	case "fast":
 		h := &handler.ConnectionHandlerFast{Context: ctx, Option: o.handlerOption, Sender: sender}
-		return handler.NewTCPAssembler(h, o.Chan, o.IP, uint16(o.Port), o.Resp)
+		return handler.NewTCPAssembler(h, o.Chan, o.Resp)
 	default:
 		return o.createTCPStdAssembler(ctx, sender)
 	}
