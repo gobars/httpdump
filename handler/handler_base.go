@@ -311,6 +311,10 @@ func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time
 		defer discardAll(r.GetBody())
 	}
 
+	if o.PermitRatio() {
+		return
+	}
+
 	if h.usingJSON {
 		data, err := RspToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano))
 		if err != nil {

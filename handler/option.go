@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"math/rand"
 	"strings"
 	"sync/atomic"
 
@@ -30,9 +31,13 @@ type Option struct {
 	Eof         bool
 	Debug       bool
 	RateLimiter *rate.Limiter
-	N           int32
-	Num         int32
-	CtxCancel   context.CancelFunc
+
+	N   int32
+	Num int32
+
+	CtxCancel context.CancelFunc
+
+	SrcRatio float64
 }
 
 func (o *Option) CanDump() bool {
@@ -48,7 +53,7 @@ func (o *Option) PermitsMethod(method string) bool {
 }
 
 func (o *Option) PermitsReq(r Req) bool {
-	return o.permitsHost(r.GetHost()) && o.permitsUri(r.GetRequestURI()) && o.permitN()
+	return o.permitsHost(r.GetHost()) && o.permitsUri(r.GetRequestURI()) && o.permitN() && o.PermitRatio()
 }
 
 func (o *Option) PermitsCode(code int) bool { return o.Status.Contains(code) }
@@ -68,4 +73,8 @@ func (o *Option) ReachedN() bool {
 
 func (o *Option) permitN() bool {
 	return o.N <= 0 || atomic.AddInt32(&o.Num, -1) >= 0
+}
+
+func (o *Option) PermitRatio() bool {
+	return o.SrcRatio == 1 || rand.Float64() <= o.SrcRatio
 }

@@ -59,6 +59,7 @@ func main() {
 		Debug:    app.Debug,
 		N:        app.N,
 		Num:      app.N,
+		SrcRatio: app.SrcRatio,
 	}
 
 	if app.Rate > 0 {
@@ -99,7 +100,7 @@ type App struct {
 	Force      bool   `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl       bool   `usage:"Output an equivalent curl command for each http request"`
 	Version    bool   `flag:"v" usage:"Print version info and exit"`
-	Eof        bool   `val:"true" usage:"Output EOF connection info or not."`
+	Eof        bool   `usage:"Output EOF connection info or not."`
 	Debug      bool   `usage:"Enable debugging."`
 
 	DumpBody string   `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
@@ -123,9 +124,14 @@ type App struct {
 
 	Pprof string `usage:"pprof address to listen on, not activate pprof if empty, eg. :6060"`
 
-	Rate float64 `usage:"rate limit output per second"`
+	Rate        float64 `usage:"rate limit output per second"`
+	SrcRatio    float64 `val:"1" usage:"source ratio, e.g. 0.1 should be (0,1]"`
+	ReplayRatio float64 `val:"1" usage:"replay ratio, e.g. 2 to double replay, 0.1 to replay only 10% requests"`
 
 	handlerOption *handler.Option
+
+	ReplayN        int     `flag:"-"`
+	ReplayFraction float64 `flag:"-"`
 }
 
 func (o *App) run() {
@@ -141,7 +147,8 @@ func (o *App) run() {
 	senders := make(handler.Senders, 0, len(o.Output))
 	for _, out := range o.Output {
 		if addr, ok := rest.MaybeURL(out); ok {
-			senders = append(senders, replay.CreateSender(ctx, wg, o.Method, o.File, o.Verbose, addr, o.OutChan))
+			sender := replay.CreateSender(ctx, wg, o.Method, o.File, o.Verbose, addr, o.OutChan, o.ReplayN, o.ReplayFraction)
+			senders = append(senders, sender)
 		} else {
 			senders = append(senders, rotate.NewQueueWriter(out,
 				rotate.WithContext(ctx), rotate.WithOutChanSize(int(o.OutChan)), rotate.WithAppend(true)))
@@ -206,6 +213,15 @@ func (o *App) createTCPStdAssembler(ctx context.Context, printer handler.Sender)
 
 // PostProcess does some post processes.
 func (o *App) PostProcess() {
+	if o.SrcRatio <= 0 || o.SrcRatio > 1 {
+		log.Fatalf("SrcRatio %f is invalid, should be (0,1]", o.SrcRatio)
+	}
+	if o.ReplayRatio <= 0 {
+		log.Fatalf("SrcRatio %f is invalid, should be (0,∞)", o.ReplayRatio)
+	}
+	o.ReplayN = int(o.ReplayRatio)
+	o.ReplayFraction = o.ReplayRatio - float64(o.ReplayN)
+
 	o.processDumpBody()
 }
 

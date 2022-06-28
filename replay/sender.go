@@ -22,8 +22,10 @@ func (ss *Sender) Send(msg string, countDiscards bool) {
 	ss.ch <- msg
 }
 
-func CreateSender(ctx context.Context, wg *sync.WaitGroup, method, file, verbose, addr string, chanSize uint) *Sender {
-	rc := Config{Method: method, File: file, Verbose: verbose, Replay: addr}
+func CreateSender(ctx context.Context, wg *sync.WaitGroup, method, file, verbose, addr string, chanSize uint,
+	replayN int, replayFraction float64,
+) *Sender {
+	rc := Config{Method: method, File: file, Verbose: verbose, Replay: addr, ReplayN: replayN, ReplayFraction: replayFraction}
 	ch := make(chan string, chanSize)
 	wg.Add(1)
 

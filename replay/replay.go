@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/fs"
 	"log"
+	"math/rand"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bingoohuang/gg/pkg/ss"
 
 	"github.com/bingoohuang/gg/pkg/rest"
 	"github.com/bingoohuang/httpdump/globpath"
@@ -26,6 +29,9 @@ type Config struct {
 	InsecureVerify bool
 	Poll           bool
 	Verbose        string
+
+	ReplayN        int
+	ReplayFraction float64
 }
 
 func (c *Config) StartReplay(ctx context.Context, payloadCh <-chan string) error {
@@ -117,7 +123,14 @@ func (c *Config) createParseOptions() *Options {
 	if v := c.CreateHTTPClientConfig(); v != nil {
 		client := v.NewHTTPClient()
 		payloadHandler = func(payload Msg) error {
-			return replay(client, payload)
+			n := c.ReplayN + ss.Ifi(rand.Float64() < c.ReplayFraction, 1, 0)
+			for i := 0; i < n; i++ {
+				if err := replay(client, payload); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		}
 	}
 
