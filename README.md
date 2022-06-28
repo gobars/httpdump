@@ -270,3 +270,26 @@ Content-Length: 167
 
 {"Files":["u.txt"],"FileSizes":["4B"],"TotalSize":"4B","Cost":"78.195µs","Start":"Mon, 27 Jun 2022 03:16:24 GMT","End":"Mon, 27 Jun 2022 03:16:24 GMT","MaxTempMemory":"16.8MB","LimitSize":"10.5MB"}
 ```
+
+## bpf examples
+
+1. Drop packets to or from any address in the 10.21.0.0/16 subnet:
+    `not (net 10.21.0.0/16)`
+2. Drop packets that have both source and destination addresses in the 10.21.0.0/16 subnet:
+   `not (src net 10.21.0.0/16 and dst net 10.21.0.0/16)`
+3. Drop packets that are from 10.21.1.2 or are headed to 10.21.1.3.
+   `not (src host 10.21.1.2 or dst host 10.21.1.3)`
+4. Combine both IP and HOST:
+   `not (host 192.168.1.10) and not (host api.wxbug.net)`
+5. Drop all port 53 traffic, both TCP & UDP:
+   `not (port 53)`
+6. Drop only UDP port 53 traffic:
+   `not (udp port 53)`
+7. Drop all IP protocol 50 (IPSEC) traffic:
+   `not (ip proto 50)`
+8. Drop all traffic on TCP ports 133 through 135.
+   `not (tcp portrange 133-135)`
+9. Drop any port 53(DNS) traffic sourced from 10.21.1.2 or destined to 10.21.1.3.
+   `not (port 53) and not (src host 10.21.1.2 or dst host 10.21.1.3)`
+10. Drop any traffic using IP proto 50 or port 53 or any traffic from net 10.21.0.0/16 destined to net 10.21.0.0/16
+    `not (ip proto 50 or port 53) or not (src net 10.21.0.0/16 and dst net 10.21.0.0/16)`
