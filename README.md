@@ -297,3 +297,7 @@ Content-Length: 167
    `not (port 53) and not (src host 10.21.1.2 or dst host 10.21.1.3)`
 10. Drop any traffic using IP proto 50 or port 53 or any traffic from net 10.21.0.0/16 destined to net 10.21.0.0/16
     `not (ip proto 50 or port 53) or not (src net 10.21.0.0/16 and dst net 10.21.0.0/16)`
+
+## resources
+
+1. [goreplay a network monitoring tool which can record your live traffic and use it for shadowing, load testing, monitoring and detailed analysis.](https://github.com/buger/goreplay)
