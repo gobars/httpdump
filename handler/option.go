@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"strings"
 	"sync/atomic"
 
@@ -29,6 +30,9 @@ type Option struct {
 	Eof         bool
 	Debug       bool
 	RateLimiter *rate.Limiter
+	N           int32
+	Num         int32
+	CtxCancel   context.CancelFunc
 }
 
 func (o *Option) CanDump() bool {
@@ -43,12 +47,25 @@ func (o *Option) PermitsMethod(method string) bool {
 	return o.Method == "" || strings.Contains(o.Method, method)
 }
 
-func (o *Option) PermitsUri(uri string) bool { return o.Uri == "" || wildcardMatch(uri, o.Uri) }
-
-func (o *Option) PermitsHost(host string) bool { return o.Host == "" || wildcardMatch(host, o.Host) }
-
-func (o *Option) Permits(r Req) bool {
-	return o.PermitsHost(r.GetHost()) && o.PermitsUri(r.GetRequestURI()) && o.PermitsMethod(r.GetMethod())
+func (o *Option) PermitsReq(r Req) bool {
+	return o.permitsHost(r.GetHost()) && o.permitsUri(r.GetRequestURI()) && o.permitN()
 }
 
 func (o *Option) PermitsCode(code int) bool { return o.Status.Contains(code) }
+
+func (o *Option) permitsUri(uri string) bool { return o.Uri == "" || wildcardMatch(uri, o.Uri) }
+
+func (o *Option) permitsHost(host string) bool { return o.Host == "" || wildcardMatch(host, o.Host) }
+
+func (o *Option) ReachedN() bool {
+	reached := o.N > 0 && atomic.LoadInt32(&o.Num) <= 0
+	if reached {
+		o.CtxCancel()
+	}
+
+	return reached
+}
+
+func (o *Option) permitN() bool {
+	return o.N <= 0 || atomic.AddInt32(&o.Num, -1) >= 0
+}

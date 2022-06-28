@@ -41,7 +41,8 @@ func main() {
 	flagparse.Parse(app, flagparse.AutoLoadYaml("c", "httpdump.yml"),
 		flagparse.ProcessInit(&initAssets))
 
-	golog.Setup()
+	defer golog.Setup().OnExit()
+
 	app.print()
 	app.handlerOption = &handler.Option{
 		Resp:     app.Resp,
@@ -56,6 +57,8 @@ func main() {
 		Curl:     app.Curl,
 		Eof:      app.Eof,
 		Debug:    app.Debug,
+		N:        app.N,
+		Num:      app.N,
 	}
 
 	if app.Rate > 0 {
@@ -76,6 +79,7 @@ type App struct {
 
 	IP   string `usage:"Filter by ip, if either src or dst ip is matched, the packet will be processed"`
 	Port uint   `usage:"Filter by port, if either source or target port is matched, the packet will be processed"`
+	N    int32  `usage:"Max Requests and Responses captured, and then exits"`
 	Bpf  string `usage:"Customized bpf, if it is set, -ip -port will be suppressed, e.g. tcp and ((dst host 1.2.3.4 and port 80) || (src host 1.2.3.4 and src port 80))"`
 
 	Chan    uint `val:"10240" usage:"Channel size to buffer tcp packets"`
@@ -100,7 +104,7 @@ type App struct {
 
 	DumpBody string   `usage:"Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)"`
 	Mode     string   `val:"fast" usage:"std/fast"`
-	Output   []string `usage:"File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode\n Or Relay http address, eg http://127.0.0.1:5002"`
+	Output   []string `usage:"\n        File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode\n        Or Relay http address, eg http://127.0.0.1:5002\n        Or any of stdout/stderr/stdout:log"`
 
 	Idle time.Duration `val:"4m" usage:"Idle time to remove connection if no package received"`
 
@@ -125,12 +129,13 @@ type App struct {
 }
 
 func (o *App) run() {
-	ctx, _ := sigx.RegisterSignals(nil)
+	ctx, ctxCancel := sigx.RegisterSignals(nil)
+	o.handlerOption.CtxCancel = ctxCancel
 	sigx.RegisterSignalProfile()
 	wg := &sync.WaitGroup{}
 
 	if len(o.Output) == 0 {
-		o.Output = []string{"stdout"}
+		o.Output = []string{"stdout:log"}
 	}
 
 	senders := make(handler.Senders, 0, len(o.Output))
@@ -176,6 +181,8 @@ func (o *App) run() {
 	}
 
 	<-ctx.Done()
+	log.Printf("sleep 3s and then exit...")
+	time.Sleep(3 * time.Second)
 	_ = senders.Close()
 	wg.Wait()
 }

@@ -20,6 +20,7 @@ extldflags := -extldflags -static
 # https://github.com/kubermatic/kubeone/blob/master/Makefile
 flags1 = -s -w -X $(pkg).BuildTime=$(buildTime) -X $(pkg).AppVersion=$(appVersion) -X $(pkg).GitCommit=$(gitInfo) -X $(pkg).GoVersion=$(goVersion)
 flags2 = ${extldflags} ${flags1}
+goinstall1 = go install -mod vendor -trimpath -ldflags='${flags1}' ./...
 goinstall = go install -mod vendor -trimpath -ldflags='${flags2}' ./...
 gobin := $(shell go env GOBIN)
 # try $GOPATN/bin if $gobin is empty
@@ -56,6 +57,11 @@ fmt:
 	revive .
 	goimports -w .
 	gci -w -local github.com/daixiang0/gci
+
+install1: init
+	${goinstall1}
+	upx --best --lzma ${gobin}/${app}
+	ls -lh ${gobin}/${app}
 
 install: init
 	${goinstall}

@@ -213,6 +213,10 @@ func (h *Base) handleRequest(wg *sync.WaitGroup, c *TCPConnection) {
 			h.dealRequest(rb, h.option, c)
 			rb.Reset()
 		}
+
+		if h.option.ReachedN() {
+			return
+		}
 	}
 
 	if rb.Len() > 0 && h.option.PermitsMethod(method) && h.LimitAllow() {
@@ -241,6 +245,10 @@ func (h *Base) handleResponse(wg *sync.WaitGroup, c *TCPConnection) {
 		if rb.Len() > 0 && h.option.PermitsCode(lastCode) && util.Http1EndHint(rb.Bytes()) && h.LimitAllow() {
 			h.dealResponse(rb, h.option, c)
 			rb.Reset()
+		}
+
+		if h.option.ReachedN() {
+			return
 		}
 	}
 
@@ -282,10 +290,9 @@ func (h *Base) processRequest(discard bool, r Req, o *Option, startTime time.Tim
 		defer discardAll(r.GetBody())
 	}
 
-	if o.Permits(r) {
+	if o.PermitsReq(r) {
 		if h.usingJSON {
-			data, err := ReqToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(),
-				startTime.Format(time.RFC3339Nano))
+			data, err := ReqToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano))
 			if err != nil {
 				log.Printf("req to JSON  failed: %v", err)
 			}
@@ -304,19 +311,16 @@ func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time
 		defer discardAll(r.GetBody())
 	}
 
-	if o.Status.Contains(r.GetStatusCode()) {
-		if h.usingJSON {
-			data, err := RspToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano))
-			if err != nil {
-				log.Printf("req to JSON  failed: %v", err)
-			}
-
-			h.sender.Send(string(data)+"\n", true)
-		} else {
-
-			h.printResponse(r, endTime, seq)
-			h.sender.Send(h.rspBuffer.String(), true)
+	if h.usingJSON {
+		data, err := RspToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano))
+		if err != nil {
+			log.Printf("req to JSON  failed: %v", err)
 		}
+
+		h.sender.Send(string(data)+"\n", true)
+	} else {
+		h.printResponse(r, endTime, seq)
+		h.sender.Send(h.rspBuffer.String(), true)
 	}
 }
 
