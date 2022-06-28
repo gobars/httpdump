@@ -311,7 +311,7 @@ func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time
 		defer discardAll(r.GetBody())
 	}
 
-	if o.PermitRatio() {
+	if !o.PermitRatio() {
 		return
 	}
 
