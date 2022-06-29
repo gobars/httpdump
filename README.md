@@ -301,4 +301,4 @@ Content-Length: 167
 
 ## resources
 
-1. [goreplay a network monitoring tool which can record your live traffic and use it for shadowing, load testing, monitoring and detailed analysis.](https://github.com/buger/goreplay)
+1. [goreplay](https://github.com/buger/goreplay) a network monitoring tool which can record your live traffic and use it for shadowing, load testing, monitoring and detailed analysis.
