@@ -3,8 +3,6 @@ package handler
 import (
 	"context"
 	"sync"
-
-	"github.com/allegro/bigcache/v3"
 )
 
 // ConnectionHandlerFast impl ConnectionHandler
@@ -13,7 +11,6 @@ type ConnectionHandlerFast struct {
 	Option *Option
 	Sender Sender
 	wg     sync.WaitGroup
-	cache  *bigcache.BigCache
 }
 
 func (h *ConnectionHandlerFast) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
