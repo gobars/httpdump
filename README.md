@@ -6,6 +6,10 @@ gopacket project, this tool has simpler code base and is more efficient.
 Forked from [httpdump](https://github.com/hsiafan/httpdump), For original python
 implementation, [refer to httpcap on pypi](https://pypi.org/project/httpcap/).
 
+## Features support
+
+1. 2022-06-29 `-rr` to keep request and its relative response in order.
+
 ## Install & Requirement
 
 Build httpdump requires libpcap-dev and cgo enabled.

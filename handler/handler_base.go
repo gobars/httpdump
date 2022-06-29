@@ -309,6 +309,8 @@ type rrSender struct {
 func (r rrSender) Send(msg string, countDiscards bool) {
 	defer handy.LockUnlock(&r.cache.Mutex)()
 
+	t := time.Now()
+
 	if c, ok := r.cache.Cache[r.key]; ok {
 		delete(r.cache.Cache, r.key)
 		if r.Req {
@@ -318,11 +320,15 @@ func (r rrSender) Send(msg string, countDiscards bool) {
 		if !r.Req {
 			r.OriginSender.Send(msg, countDiscards)
 		}
-
-		return
+	} else {
+		r.cache.Cache[r.key] = &SendArgs{Msg: msg, CountDiscards: countDiscards, Time: t, Req: r.Req}
 	}
 
-	r.cache.Cache[r.key] = &SendArgs{Msg: msg, CountDiscards: countDiscards}
+	for k, v := range r.cache.Cache {
+		if t.Sub(v.Time) > 3*time.Second {
+			delete(r.cache.Cache, k)
+		}
+	}
 }
 
 func (r rrSender) Close() error { return r.OriginSender.Close() }
@@ -357,8 +363,9 @@ func (h *Base) processRequest(discard bool, r Req, o *Option, startTime time.Tim
 }
 
 type SendArgs struct {
-	Msg           string
-	CountDiscards bool
+	Msg                string
+	CountDiscards, Req bool
+	time.Time
 }
 
 func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time) {
