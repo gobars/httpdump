@@ -96,7 +96,7 @@ type App struct {
 	Web        bool   `usage:"Start web server for HTTP requests and responses event"`
 	WebPort    int    `usage:"Web server port if web is enable"`
 	WebContext string `usage:"Web server context path if web is enable"`
-	Resp       bool   `usage:"Print response or not"`
+	Resp       int    `flag:"r" count:"true" usage:"-r: print response, -rr: print response after relative request "`
 	Force      bool   `usage:"Force print unknown content-type http body even if it seems not to be text content"`
 	Curl       bool   `usage:"Output an equivalent curl command for each http request"`
 	Version    bool   `flag:"v" usage:"Print version info and exit"`

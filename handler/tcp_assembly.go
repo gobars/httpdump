@@ -29,10 +29,10 @@ type TCPAssembler struct {
 	handler     ConnectionHandler
 
 	chanSize    uint
-	processResp bool
+	processResp int
 }
 
-func NewTCPAssembler(handler ConnectionHandler, chanSize uint, processResp bool) *TCPAssembler {
+func NewTCPAssembler(handler ConnectionHandler, chanSize uint, processResp int) *TCPAssembler {
 	return &TCPAssembler{
 		connections: map[string]*TCPConnection{},
 		handler:     handler,
@@ -138,13 +138,13 @@ func (p Endpoint) equals(v Endpoint) bool { return p.ip == v.ip && p.port == v.p
 func (p Endpoint) String() string         { return p.ip + ":" + strconv.Itoa(int(p.port)) }
 
 // create tcp connection, by the first tcp packet. this packet should from client to server
-func newTCPConnection(key string, src, dst Endpoint, chanSize uint, processResp bool) *TCPConnection {
+func newTCPConnection(key string, src, dst Endpoint, chanSize uint, processResp int) *TCPConnection {
 	t := &TCPConnection{
 		key:           key,
 		requestStream: newNetworkStream(src, dst, true, chanSize),
 	}
 
-	if processResp {
+	if processResp > 0 {
 		t.responseStream = newNetworkStream(src, dst, false, chanSize)
 	} else {
 		t.responseStream = &FakeStream{}

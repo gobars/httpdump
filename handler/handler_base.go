@@ -16,6 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bingoohuang/gg/pkg/handy"
+
 	"github.com/bingoohuang/gg/pkg/ginx"
 	"github.com/bingoohuang/gg/pkg/osx"
 
@@ -88,6 +90,20 @@ type Base struct {
 	rspCounter Counter
 
 	usingJSON bool
+	cache     *rrCache
+}
+
+type rrCache struct {
+	sync.Mutex
+	Cache map[string]*SendArgs
+}
+
+func NewBase(ctx context.Context, key Key, option *Option, sender Sender) *Base {
+	b := &Base{Context: ctx, key: key, option: option, sender: sender, usingJSON: IsUsingJSON()}
+	if option.Resp > 1 {
+		b.cache = &rrCache{Cache: make(map[string]*SendArgs)}
+	}
+	return b
 }
 
 func writeFormat(b *bytes.Buffer, f string, a ...interface{}) { _, _ = fmt.Fprintf(b, f, a...) }
@@ -283,6 +299,34 @@ func (h *Base) dealResponse(rb *bytes.Buffer, o *Option, c *TCPConnection) {
 	}
 }
 
+type rrSender struct {
+	OriginSender Sender
+	key          string
+	cache        *rrCache
+	Req          bool
+}
+
+func (r rrSender) Send(msg string, countDiscards bool) {
+	defer handy.LockUnlock(&r.cache.Mutex)()
+
+	if c, ok := r.cache.Cache[r.key]; ok {
+		delete(r.cache.Cache, r.key)
+		if r.Req {
+			r.OriginSender.Send(msg, countDiscards)
+		}
+		r.OriginSender.Send(c.Msg, c.CountDiscards)
+		if !r.Req {
+			r.OriginSender.Send(msg, countDiscards)
+		}
+
+		return
+	}
+
+	r.cache.Cache[r.key] = &SendArgs{Msg: msg, CountDiscards: countDiscards}
+}
+
+func (r rrSender) Close() error { return r.OriginSender.Close() }
+
 func (h *Base) processRequest(discard bool, r Req, o *Option, startTime time.Time) {
 	seq := h.reqCounter.Incr()
 
@@ -290,19 +334,31 @@ func (h *Base) processRequest(discard bool, r Req, o *Option, startTime time.Tim
 		defer discardAll(r.GetBody())
 	}
 
-	if o.PermitsReq(r) {
-		if h.usingJSON {
-			data, err := ReqToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano))
-			if err != nil {
-				log.Printf("req to JSON  failed: %v", err)
-			}
-
-			h.sender.Send(string(data)+"\n", true)
-		} else {
-			h.printRequest(r, startTime, seq)
-			h.sender.Send(h.reqBuffer.String(), true)
-		}
+	if !o.PermitsReq(r) {
+		return
 	}
+
+	sender := h.sender
+	if h.cache != nil {
+		key := fmt.Sprintf("%d-%s-%s", seq, h.key.Src(), h.key.Dst())
+		sender = &rrSender{OriginSender: h.sender, key: key, cache: h.cache, Req: true}
+	}
+
+	if h.usingJSON {
+		data, err := ReqToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(), startTime.Format(time.RFC3339Nano))
+		if err != nil {
+			log.Printf("req to JSON  failed: %v", err)
+		}
+		sender.Send(string(data)+"\n", true)
+	} else {
+		h.printRequest(r, startTime, seq)
+		sender.Send(h.reqBuffer.String(), true)
+	}
+}
+
+type SendArgs struct {
+	Msg           string
+	CountDiscards bool
 }
 
 func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time) {
@@ -315,16 +371,22 @@ func (h *Base) processResponse(discard bool, r Rsp, o *Option, endTime time.Time
 		return
 	}
 
+	sender := h.sender
+	if h.cache != nil {
+		key := fmt.Sprintf("%d-%s-%s", seq, h.key.Src(), h.key.Dst())
+		sender = &rrSender{OriginSender: h.sender, cache: h.cache, key: key}
+	}
+
 	if h.usingJSON {
 		data, err := RspToJSON(h.Context, r, seq, h.key.Src(), h.key.Dst(), endTime.Format(time.RFC3339Nano))
 		if err != nil {
 			log.Printf("req to JSON  failed: %v", err)
 		}
 
-		h.sender.Send(string(data)+"\n", true)
+		sender.Send(string(data)+"\n", true)
 	} else {
 		h.printResponse(r, endTime, seq)
-		h.sender.Send(h.rspBuffer.String(), true)
+		sender.Send(h.rspBuffer.String(), true)
 	}
 }
 

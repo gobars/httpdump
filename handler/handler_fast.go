@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"sync"
+
+	"github.com/allegro/bigcache/v3"
 )
 
 // ConnectionHandlerFast impl ConnectionHandler
@@ -11,19 +13,18 @@ type ConnectionHandlerFast struct {
 	Option *Option
 	Sender Sender
 	wg     sync.WaitGroup
+	cache  *bigcache.BigCache
 }
 
 func (h *ConnectionHandlerFast) handle(src Endpoint, dst Endpoint, c *TCPConnection) {
-	key := &ConnectionKey{src: src, dst: dst}
-	b := &Base{Context: h.Context, key: key, option: h.Option, sender: h.Sender, usingJSON: IsUsingJSON()}
+	b := NewBase(h.Context, &ConnectionKey{src: src, dst: dst}, h.Option, h.Sender)
 
 	h.wg.Add(1)
 	go b.handleRequest(&h.wg, c)
 
-	if h.Option.Resp {
+	if h.Option.Resp > 0 {
 		h.wg.Add(1)
-		rspHandler := &Base{Context: h.Context, key: key, option: h.Option, sender: h.Sender, usingJSON: IsUsingJSON()}
-		go rspHandler.handleResponse(&h.wg, c)
+		go b.handleResponse(&h.wg, c)
 	}
 }
 

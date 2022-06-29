@@ -53,20 +53,21 @@ func (k streamKey) String() string { // like 192.168.217.54:53933-192.168.126.18
 var _ Key = (*streamKey)(nil)
 
 func (f *Factory) New(netFlow, tcpFlow gopacket.Flow) tcpassembly.Stream {
-	key := &streamKey{net: netFlow, tcp: tcpFlow}
-
+	h := NewBase(f.Context, &streamKey{net: netFlow, tcp: tcpFlow}, f.option, f.sender)
 	reader := tcpreader.NewReaderStream()
 	reader.LossErrors = true
-	go f.run(key, &reader)
+	go f.run(h, &reader)
 	return &reader
 }
 
-func (f *Factory) run(key *streamKey, reader *tcpreader.ReaderStream) {
+func (f *Factory) run(b *Base, reader *tcpreader.ReaderStream) {
 	buf := bufio.NewReader(reader)
 	if peek, _ := buf.Peek(8); string(peek[:5]) == "HTTP/" {
-		f.runResponses(key, buf)
+		if b.option.Resp > 0 {
+			f.runResponses(b, buf)
+		}
 	} else if isHTTPRequestData(peek) {
-		f.runRequests(key, buf)
+		f.runRequests(b, buf)
 	}
 
 	_, _ = io.Copy(io.Discard, reader)
@@ -107,9 +108,7 @@ func (h HttpReq) GetProto() string        { return h.Proto }
 func (h HttpReq) GetHeader() http.Header  { return h.Header }
 func (h HttpReq) GetContentLength() int64 { return h.ContentLength }
 
-func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
-	h := &Base{Context: f.Context, key: key, option: f.option, sender: f.sender, usingJSON: IsUsingJSON()}
-
+func (f *Factory) runResponses(h *Base, buf *bufio.Reader) {
 	for {
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
 		r, err := http.ReadResponse(buf, nil)
@@ -123,9 +122,7 @@ func (f *Factory) runResponses(key *streamKey, buf *bufio.Reader) {
 	}
 }
 
-func (f *Factory) runRequests(key *streamKey, buf *bufio.Reader) {
-	h := &Base{Context: f.Context, key: key, option: f.option, sender: f.sender, usingJSON: IsUsingJSON()}
-
+func (f *Factory) runRequests(h *Base, buf *bufio.Reader) {
 	for {
 		// 坑警告，这里返回的req，由于body没有读取，reader流位置可能没有移动到http请求的结束
 		r, err := http.ReadRequest(buf)

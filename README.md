@@ -60,7 +60,7 @@ Usage of httpdump:
  Or Relay http address, eg http://127.0.0.1:5002
   -port uint	Filter by port, if either source or target port is matched, the packet will be processed
   -pprof string	pprof address to listen on, not activate pprof if empty, eg. :6060
-  -resp	Print response or not
+  -r	Print response or not
   -status value	Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400
   -uri string	Filter by request url path, using wildcard match(*, ?)
   -v	Print version info and exit
@@ -74,7 +74,7 @@ Usage of httpdump:
 A simple capture:
 
 ```sh
-🕙[2021-05-22 18:05:03.891] ❯ sudo httpdump -i lo0 -port 5003 -resp -level all
+🕙[2021-05-22 18:05:03.891] ❯ sudo httpdump -i lo0 -port 5003 -r -level all
 
 ### REQUEST  ::1:59982 ea4e138b00000001b295aafb -> ::1:5003 2021-05-22T18:05:16.065566+08:00
 POST /echo/123 HTTP/1.1
@@ -183,14 +183,14 @@ output:
 
 ## Web UI
 
-`sudo httpdump -port 5003 -resp -web -web-port 6003 -web-context httpdump`
+`sudo httpdump -port 5003 -r -web -web-port 6003 -web-context httpdump`
 
 ![img.png](_doc/img.png)
 
 ## PRINT_JSON=Y
 
 ```sh
-$ sudo PRINT_JSON=Y httpdump -i lo0 -port 5003 -resp -level all
+$ sudo PRINT_JSON=Y httpdump -i lo0 -port 5003 -r -level all
 {"seq":1,"src":"127.0.0.1:49546","dest":"127.0.0.1:5003","timestamp":"2022-05-07T23:26:34.136481+08:00","requestUri":"/v","method":"GET","host":"127.0.0.1:5003","header":{"Accept":["application/json"],"Accept-Encoding":["gzip, deflate"],"Content-Type":["application/json"],"Gurl-Date":["Sat, 07 May 2022 15:26:34 GMT"],"Host":["127.0.0.1:5003"],"User-Agent":["gurl/1.0.0"]},"body":""}
 {"seq":1,"src":"127.0.0.1:49546","dest":"127.0.0.1:5003","timestamp":"2022-05-07T23:26:34.136549+08:00","header":{"Content-Type":["application/json; charset=utf-8"],"Date":["Sat, 07 May 2022 15:26:34 GMT"],"Vary":["Accept-Encoding"]},"body":{"build":"2022-05-07T23:21:12+0800","git":"master-a42347e@2022-05-05T19:10:41+08:00","go":"go1.18.1_darwin/amd64","version":"1.3.5"},"statusCode":200}
 {"seq":1,"src":"127.0.0.1:49661","dest":"127.0.0.1:5003","timestamp":"2022-05-07T23:27:18.967138+08:00","requestUri":"/v","method":"POST","host":"127.0.0.1:5003","header":{"Accept":["application/json"],"Accept-Encoding":["gzip, deflate"],"Content-Length":["27"],"Content-Type":["application/json"],"Gurl-Date":["Sat, 07 May 2022 15:27:18 GMT"],"Host":["127.0.0.1:5003"],"User-Agent":["gurl/1.0.0"]},"body":{"age":10,"name":"bingoo"}}
@@ -208,7 +208,7 @@ $ sudo PRINT_JSON=Y httpdump -i lo0 -port 5003 -resp -level all
 ## `application/x-www-form-urlencoded` supported
 
 1. `httplive -p 5004`
-2. `httpdump -port 5004 -resp`
+2. `httpdump -port 5004 -r`
 
 ```sh
 ### #2 REQ 60.247.93.190:10713-10.0.24.15:5004 2022-06-27T10:19:53.552086+08:00
@@ -240,10 +240,10 @@ Content-Length: 136
 ## `Content-Type: multipart/form-data;` supported
 
 1. `httplive -p 5004`
-2. `httpdump -port 5004 -resp -force`
+2. `httpdump -port 5004 -r -force`
 
 ```sh
-[root@VM-24-15-centos d5k]# go/bin/httpdump -port 5004 -resp -force
+[root@VM-24-15-centos d5k]# go/bin/httpdump -port 5004 -r -force
 ### #1 REQ 60.247.93.190:15271-10.0.24.15:5004 2022-06-27T11:16:24.834517+08:00
 POST /upload/ HTTP/1.1
 Dnt: 1

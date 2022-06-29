@@ -25,7 +25,7 @@ type Option struct {
 	DumpBody    string
 	dumpNum     uint32
 	DumpMax     uint32
-	Resp        bool
+	Resp        int
 	Force       bool
 	Curl        bool
 	Eof         bool
