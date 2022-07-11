@@ -6,7 +6,7 @@
 
 hosts = [
     "192.168.126.182 footstone/{PBE}BX6qwkwV8yF-dBwoM4K7P4qK4ege4mhz id=1 group=1 @ARCH=amd64",
-    "d5k.co d5k:{PBE}0nZXJnR3ZeL3z3GYQbQwV6BtPkd0GbEl id=2 group=2 @ARCH=amd64",
+    "d5k.co d5k:{PBE}0nZXJnR3ZeL3z3GYQbQwV6BtPkd0GbEl id=2 group=d5k @ARCH=amd64",
     "124.71.131.248:2182 root/{PBE}x8ScQ2JVKbxZAH3PiZMgd6uzkI3J9rX9 id=3 group=3 @ARCH=arm64",
 ]
 
@@ -19,7 +19,7 @@ globalRemote = true
 cmds = [
     "%local basename $PWD => @App",
     "%local rm -fr vendor && go mod download && go mod vendor",
-    "%local make git.commit",
+    "%local rm -fr git.branch && rm -fr git.commit && make git.commit",
     "%local make targz",
     "mkdir -p bingoohuang && rm -fr bingoohuang/@App*",
     "%ul ../@App.tar.gz bingoohuang/",
