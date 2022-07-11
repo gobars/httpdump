@@ -416,7 +416,7 @@ func (h *Base) printRequest(r Req, startTime time.Time, seq int32) {
 	printHeader(b, header)
 	writeBytes(b, []byte("\r\n"))
 
-	hasBody := contentLength != 0 && !ss.AnyOf(r.GetMethod(), "GET", "HEAD", "TRACE", "OPTIONS")
+	hasBody := contentLength != 0 && !ss.AnyOf(r.GetMethod(), "CONNECT", "GET", "HEAD", "TRACE", "OPTIONS")
 
 	if hasBody && o.CanDump() {
 		fn := bodyFileName(o.DumpBody, seq, "REQ", startTime)
@@ -630,7 +630,7 @@ func (h *Base) handleError(err error, t time.Time, tag Tag) {
 	} else {
 		msg := fmt.Sprintf("\n### ERR#%d %s %s-%s %s, error: %v", seq, tag, k.Src(), k.Dst(), tim, err)
 		h.sender.Send(msg, false)
-		_, _ = fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v", tag, err)
+		_, _ = fmt.Fprintf(os.Stderr, "error parsing HTTP %s, error: %v\n", tag, err)
 	}
 }
 

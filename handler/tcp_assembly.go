@@ -441,6 +441,7 @@ func compareTCPSeq(seq1, seq2 uint32) int {
 }
 
 var httpMethods = map[string]bool{
+	"CONNECT": true,
 	"GET":     true,
 	"POST":    true,
 	"PUT":     true,

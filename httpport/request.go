@@ -751,7 +751,7 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 	}
 	rawurl := req.RequestURI
 	if req.ProtoMajor, req.ProtoMinor, ok = ParseHTTPVersion(req.Proto); !ok {
-		return nil, &badStringError{"malformed HTTP version", req.Proto}
+		return nil, &badStringError{"malformed HTTP version", s}
 	}
 
 	// CONNECT requests are used two different ways, and neither uses a full BaseURL:
