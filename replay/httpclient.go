@@ -10,9 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bingoohuang/gg/pkg/ss"
-
 	"github.com/bingoohuang/gg/pkg/rest"
+	"github.com/bingoohuang/gg/pkg/ss"
 )
 
 // HTTPClient holds configurations for a single HTTP client

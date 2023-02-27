@@ -369,10 +369,10 @@ func shouldRedirectPost(statusCode int) bool {
 // the following redirect codes, Get follows the redirect, up to a
 // maximum of 10 redirects:
 //
-//    301 (Moved Permanently)
-//    302 (Found)
-//    303 (See Other)
-//    307 (Temporary Redirect)
+//	301 (Moved Permanently)
+//	302 (Found)
+//	303 (See Other)
+//	307 (Temporary Redirect)
 //
 // An error is returned if there were too many redirects or if there
 // was an HTTP protocol error. A non-2xx response doesn't cause an
@@ -393,10 +393,10 @@ func Get(url string) (resp *Response, err error) {
 // following redirect codes, Get follows the redirect after calling the
 // Client's CheckRedirect function:
 //
-//    301 (Moved Permanently)
-//    302 (Found)
-//    303 (See Other)
-//    307 (Temporary Redirect)
+//	301 (Moved Permanently)
+//	302 (Found)
+//	303 (See Other)
+//	307 (Temporary Redirect)
 //
 // An error is returned if the Client's CheckRedirect function fails
 // or if there was an HTTP protocol error. A non-2xx response doesn't
@@ -581,10 +581,10 @@ func (c *Client) PostForm(url string, data url.Values) (resp *Response, err erro
 // the following redirect codes, Head follows the redirect, up to a
 // maximum of 10 redirects:
 //
-//    301 (Moved Permanently)
-//    302 (Found)
-//    303 (See Other)
-//    307 (Temporary Redirect)
+//	301 (Moved Permanently)
+//	302 (Found)
+//	303 (See Other)
+//	307 (Temporary Redirect)
 //
 // Head is a wrapper around DefaultClient.Head
 func Head(url string) (resp *Response, err error) {
@@ -595,10 +595,10 @@ func Head(url string) (resp *Response, err error) {
 // following redirect codes, Head follows the redirect after calling the
 // Client's CheckRedirect function:
 //
-//    301 (Moved Permanently)
-//    302 (Found)
-//    303 (See Other)
-//    307 (Temporary Redirect)
+//	301 (Moved Permanently)
+//	302 (Found)
+//	303 (See Other)
+//	307 (Temporary Redirect)
 func (c *Client) Head(url string) (resp *Response, err error) {
 	req, err := NewRequest("HEAD", url, nil)
 	if err != nil {
@@ -608,9 +608,9 @@ func (c *Client) Head(url string) (resp *Response, err error) {
 }
 
 // cancelTimerBody is an io.ReadCloser that wraps rc with two features:
-// 1) on Read error or close, the stop func is called.
-// 2) On Read failure, if reqWasCanceled is true, the error is wrapped and
-//    marked as net.Error that hit its timeout.
+//  1. on Read error or close, the stop func is called.
+//  2. On Read failure, if reqWasCanceled is true, the error is wrapped and
+//     marked as net.Error that hit its timeout.
 type cancelTimerBody struct {
 	stop           func() // stops the time.Timer waiting to cancel the request
 	rc             io.ReadCloser

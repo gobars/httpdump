@@ -8,9 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/gopacket/layers"
-
 	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/tcpassembly"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 )

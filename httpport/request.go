@@ -373,6 +373,7 @@ const defaultUserAgent = "Go-http-client/1.1"
 
 // Write writes an HTTP/1.1 request, which is the header and body, in wire format.
 // This method consults the following fields of the request:
+//
 //	Host
 //	URL
 //	Method (defaults to "GET")
@@ -521,9 +522,11 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 
 // cleanHost strips anything after '/' or ' '.
 // Ideally we'd clean the Host header according to the spec:
-//   https://tools.ietf.org/html/rfc7230#section-5.4 (Host = uri-host [ ":" port ]")
-//   https://tools.ietf.org/html/rfc7230#section-2.7 (uri-host -> rfc3986's host)
-//   https://tools.ietf.org/html/rfc3986#section-3.2.2 (definition of host)
+//
+//	https://tools.ietf.org/html/rfc7230#section-5.4 (Host = uri-host [ ":" port ]")
+//	https://tools.ietf.org/html/rfc7230#section-2.7 (uri-host -> rfc3986's host)
+//	https://tools.ietf.org/html/rfc3986#section-3.2.2 (definition of host)
+//
 // But practically, what we are trying to avoid is the situation in
 // issue 11206, where a malformed Host header used in the proxy context
 // would create a bad request. So it is enough to just truncate at the
@@ -1169,19 +1172,19 @@ func validHeaderName(v string) bool {
 // validHeaderValue reports whether v is a valid "field-value" according to
 // http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2 :
 //
-//        message-header = field-name ":" [ field-value ]
-//        field-value    = *( field-content | LWS )
-//        field-content  = <the OCTETs making up the field-value
-//                         and consisting of either *TEXT or combinations
-//                         of token, separators, and quoted-string>
+//	message-header = field-name ":" [ field-value ]
+//	field-value    = *( field-content | LWS )
+//	field-content  = <the OCTETs making up the field-value
+//	                 and consisting of either *TEXT or combinations
+//	                 of token, separators, and quoted-string>
 //
 // http://www.w3.org/Protocols/rfc2616/rfc2616-sec2.html#sec2.2 :
 //
-//        TEXT           = <any OCTET except CTLs,
-//                          but including LWS>
-//        LWS            = [CRLF] 1*( SP | HT )
-//        CTL            = <any US-ASCII control character
-//                         (octets 0 - 31) and DEL (127)>
+//	TEXT           = <any OCTET except CTLs,
+//	                  but including LWS>
+//	LWS            = [CRLF] 1*( SP | HT )
+//	CTL            = <any US-ASCII control character
+//	                 (octets 0 - 31) and DEL (127)>
 func validHeaderValue(v string) bool {
 	for i := 0; i < len(v); i++ {
 		b := v[i]

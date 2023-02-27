@@ -6,9 +6,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"golang.org/x/time/rate"
-
 	"github.com/bingoohuang/httpdump/util"
+	"golang.org/x/time/rate"
 )
 
 const (

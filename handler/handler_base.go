@@ -16,18 +16,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bingoohuang/gg/pkg/handy"
-
 	"github.com/bingoohuang/gg/pkg/ginx"
-	"github.com/bingoohuang/gg/pkg/osx"
-
+	"github.com/bingoohuang/gg/pkg/handy"
 	"github.com/bingoohuang/gg/pkg/iox"
-	"go.uber.org/multierr"
-
-	"github.com/bingoohuang/httpdump/util"
-
+	"github.com/bingoohuang/gg/pkg/osx"
 	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/httpdump/httpport"
+	"github.com/bingoohuang/httpdump/util"
+	"go.uber.org/multierr"
 )
 
 // ConnectionHandler is interface for handle tcp connection

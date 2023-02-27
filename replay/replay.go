@@ -13,9 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bingoohuang/gg/pkg/ss"
-
 	"github.com/bingoohuang/gg/pkg/rest"
+	"github.com/bingoohuang/gg/pkg/ss"
 	"github.com/bingoohuang/httpdump/globpath"
 	"go.uber.org/multierr"
 )

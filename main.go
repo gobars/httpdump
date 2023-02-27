@@ -12,25 +12,21 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/time/rate"
-
-	"github.com/bingoohuang/gg/pkg/netx/freeport"
-	"github.com/bingoohuang/gg/pkg/osx"
-
 	"github.com/bingoohuang/gg/pkg/codec"
 	"github.com/bingoohuang/gg/pkg/flagparse"
+	"github.com/bingoohuang/gg/pkg/netx/freeport"
+	"github.com/bingoohuang/gg/pkg/osx"
 	"github.com/bingoohuang/gg/pkg/rest"
 	"github.com/bingoohuang/gg/pkg/rotate"
+	"github.com/bingoohuang/gg/pkg/sigx"
 	"github.com/bingoohuang/gg/pkg/v"
 	"github.com/bingoohuang/golog"
-	"github.com/bingoohuang/jj"
-
 	"github.com/bingoohuang/httpdump/handler"
 	"github.com/bingoohuang/httpdump/replay"
 	"github.com/bingoohuang/httpdump/util"
+	"github.com/bingoohuang/jj"
 	"github.com/google/gopacket/tcpassembly"
-
-	"github.com/bingoohuang/gg/pkg/sigx"
+	"golang.org/x/time/rate"
 )
 
 // VersionInfo prints version information.

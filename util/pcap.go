@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/bingoohuang/gg/pkg/ss"
-
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"

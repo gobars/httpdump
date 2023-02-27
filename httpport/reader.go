@@ -87,7 +87,6 @@ func (r *Reader) readLineSlice() ([]byte, error) {
 // and the second will return "Line 2".
 //
 // A line consisting of only white space is never continued.
-//
 func (r *Reader) ReadContinuedLine() (string, error) {
 	line, err := r.readContinuedLineSlice()
 	return string(line), err
@@ -204,9 +203,12 @@ func parseCodeLine(line string, expectCode int) (code int, continued bool, messa
 }
 
 // ReadCodeLine reads a response code line of the form
+//
 //	code message
+//
 // where code is a three-digit status code and the message
 // extends to the rest of the line.  An example of such a line is:
+//
 //	220 plan9.bell-labs.com ESMTP
 //
 // If the prefix of the status does not match the digits in expectCode,
@@ -217,7 +219,6 @@ func parseCodeLine(line string, expectCode int) (code int, continued bool, messa
 // If the response is multi-line, ReadCodeLine returns an error.
 //
 // An expectCode <= 0 disables the check of the status code.
-//
 func (r *Reader) ReadCodeLine(expectCode int) (code int, message string, err error) {
 	code, continued, message, err := r.readCodeLine(expectCode)
 	if err == nil && continued {
@@ -241,10 +242,10 @@ func (r *Reader) ReadCodeLine(expectCode int) (code int, message string, err err
 // See page 36 of RFC 959 (http://www.ietf.org/rfc/rfc959.txt) for
 // details of another form of response accepted:
 //
-//  code-message line 1
-//  message line 2
-//  ...
-//  code message line n
+//	code-message line 1
+//	message line 2
+//	...
+//	code message line n
 //
 // If the prefix of the status does not match the digits in expectCode,
 // ReadResponse returns with err set to &Error{code, message}.
@@ -252,7 +253,6 @@ func (r *Reader) ReadCodeLine(expectCode int) (code int, message string, err err
 // the status is not in the range [310,319].
 //
 // An expectCode <= 0 disables the check of the status code.
-//
 func (r *Reader) ReadResponse(expectCode int) (code int, message string, err error) {
 	code, continued, message, err := r.readCodeLine(expectCode)
 	multi := continued
@@ -466,7 +466,6 @@ func (r *Reader) ReadDotLines() ([]string, error) {
 //		"My-Key": {"Value 1", "Value 2"},
 //		"Long-Key": {"Even Longer Value"},
 //	}
-//
 func (r *Reader) ReadMIMEHeader() (textproto.MIMEHeader, []string, error) {
 	// Avoid lots of small slice allocations later by allocating one
 	// large one ahead of time which we'll cut up into smaller
@@ -587,9 +586,11 @@ const toLower = 'a' - 'A'
 
 // validHeaderFieldByte reports whether b is a valid byte in a header
 // field key. This is actually stricter than RFC 7230, which says:
-//   tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." /
-//           "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
-//   token = 1*tchar
+//
+//	tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." /
+//	        "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
+//	token = 1*tchar
+//
 // TODO: revisit in Go 1.6+ and possibly expand this. But note that many
 // servers have historically dropped '_' to prevent ambiguities when mapping
 // to CGI environment variables.
