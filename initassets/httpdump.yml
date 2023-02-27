@@ -32,8 +32,8 @@ webport: 6003
 webcontext: httpdump
 # verbose string  usage: Verbose flag, available req/rsp/all for http replay dump
 #
-# resp    bool  usage: Print response or not
-resp: true
+# resp verbose  0: none  1: print response, 2: print response after relative request
+resp: 1
 # force   bool  usage: Force print unknown content-type http body even if it seems not to be text content
 # output   []string  usage: File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode\n Or Relay http address, eg http://127.0.0.1:5002
 output:
