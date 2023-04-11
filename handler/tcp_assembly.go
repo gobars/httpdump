@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"github.com/bingoohuang/httpdump/util"
 	"net"
 	"strconv"
 	"time"
@@ -156,8 +157,17 @@ func newTCPConnection(key string, src, dst Endpoint, chanSize uint, processResp 
 // when receive tcp packet
 func (c *TCPConnection) onReceive(src Endpoint, tcp *layers.TCP, timestamp time.Time) {
 	c.lastTimestamp = timestamp
+	var (
+		isReq bool
+		isRsp bool
+	)
+
 	if !c.isHTTP {
-		if !isHTTPRequestData(tcp.Payload) {
+		isReq = isHTTPRequestData(tcp.Payload)
+		if !isReq {
+			_, isRsp = util.ParseResponseTitle(tcp.Payload)
+		}
+		if !isReq && !isRsp {
 			return // skip no-http data
 		}
 		// receive first valid http data packet
@@ -169,10 +179,15 @@ func (c *TCPConnection) onReceive(src Endpoint, tcp *layers.TCP, timestamp time.
 	if c.clientID.equals(src) {
 		send = c.requestStream
 		confirm = c.responseStream
-		c.lastReqTimestamp = c.lastTimestamp
 	} else {
 		send = c.responseStream
 		confirm = c.requestStream
+		c.lastRspTimestamp = c.lastTimestamp
+	}
+
+	if isReq {
+		c.lastReqTimestamp = c.lastTimestamp
+	} else {
 		c.lastRspTimestamp = c.lastTimestamp
 	}
 
