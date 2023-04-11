@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/AndrewBurian/eventsource v1.1.0
 	github.com/bingoohuang/gg v0.0.0-20220628023444-49f3ff757b7b
-	github.com/bingoohuang/golog v0.0.0-20220623083314-7941382e4e22
+	github.com/bingoohuang/golog v0.0.0-20230328053740-39d597948cd0
 	github.com/bingoohuang/jj v0.0.0-20220513123231-e3092785c925
 	github.com/bmatcuk/doublestar/v3 v3.0.0
 	github.com/gobwas/glob v0.2.3
@@ -46,11 +46,11 @@ require (
 	github.com/ugorji/go/codec v1.1.7 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20220321153916-2c7772ba3064 // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
