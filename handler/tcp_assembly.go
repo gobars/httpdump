@@ -5,12 +5,12 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/bingoohuang/httpdump/util"
 	"net"
 	"strconv"
 	"time"
 
 	"github.com/bingoohuang/gg/pkg/handy"
+	"github.com/bingoohuang/httpdump/util"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 )

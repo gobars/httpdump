@@ -28,8 +28,8 @@ func LoopPackets(ctx context.Context, packets chan gopacket.Packet, assembler As
 
 	for {
 		select {
-		case p := <-packets:
-			if p == nil { // A nil p indicates the end of a pcap file.
+		case p, ok := <-packets:
+			if !ok || p == nil { // A nil p indicates the end of a pcap file.
 				return
 			}
 
@@ -49,17 +49,17 @@ func LoopPackets(ctx context.Context, packets chan gopacket.Packet, assembler As
 	}
 }
 
-func CreatePacketsChan(input, bpf, host, ips, ports string) (chan gopacket.Packet, error) {
+func CreatePacketsChan(input, bpf, host, ips, ports string) (isPcapFil bool, pc chan gopacket.Packet, err error) {
 	if v, err := os.Stat(input); err == nil && !v.IsDir() {
 		handle, err := pcap.OpenOffline(input) // read from pcap file
 		if err != nil {
-			return nil, fmt.Errorf("open file %v error: %w", input, err)
+			return false, nil, fmt.Errorf("open file %v error: %w", input, err)
 		}
 		if err = setDeviceFilter(handle, bpf, ips, ports); err != nil {
-			return nil, fmt.Errorf("set filter %v error: %w", input, err)
+			return false, nil, fmt.Errorf("set filter %v error: %w", input, err)
 		}
 
-		return listenOneSource(handle), nil
+		return true, listenOneSource(handle), nil
 	}
 
 	if input == "any" && host != "" {
@@ -67,7 +67,7 @@ func CreatePacketsChan(input, bpf, host, ips, ports string) (chan gopacket.Packe
 		// Only linux 2.2+ support any interface. we have to list all network device and listened on them all
 		interfaces, err := ListInterfaces(host)
 		if err != nil {
-			return nil, fmt.Errorf("find device error: %w", err)
+			return false, nil, fmt.Errorf("find device error: %w", err)
 		}
 
 		packetsSlice := make([]chan gopacket.Packet, len(interfaces))
@@ -81,14 +81,15 @@ func CreatePacketsChan(input, bpf, host, ips, ports string) (chan gopacket.Packe
 			packetsSlice = append(packetsSlice, localPackets)
 		}
 		if len(packetsSlice) == 0 {
-			return nil, fmt.Errorf("no device available")
+			return false, nil, fmt.Errorf("no device available")
 		}
 
-		return mergeChannel(packetsSlice), nil
+		return false, mergeChannel(packetsSlice), nil
 	}
 
 	// capture one device
-	return OpenSingleDevice(input, bpf, ips, ports)
+	packets, err := OpenSingleDevice(input, bpf, ips, ports)
+	return true, packets, err
 }
 
 func OpenSingleDevice(device, bpf, filterIps, filterPorts string) (localPackets chan gopacket.Packet, err error) {

@@ -175,17 +175,29 @@ func (o *App) run() {
 		go osx.OpenBrowser(fmt.Sprintf("http://127.0.0.1:%d%s", port, contextPath))
 	}
 
+	var isPcapFile bool
+	var waitLoop sync.WaitGroup
 	if o.File == "" {
-		packets, err := util.CreatePacketsChan(o.Input, o.Bpf, o.Host, o.IP, o.Port)
+		pcapFile, packets, err := util.CreatePacketsChan(o.Input, o.Bpf, o.Host, o.IP, o.Port)
 		if err != nil {
 			panic(err)
 		}
-		go util.LoopPackets(ctx, packets, o.createAssembler(ctx, senders), o.Idle)
+		waitLoop.Add(1)
+		go func() {
+			defer waitLoop.Done()
+			util.LoopPackets(ctx, packets, o.createAssembler(ctx, senders), o.Idle)
+		}()
+		isPcapFile = pcapFile
 	}
 
-	<-ctx.Done()
-	log.Printf("sleep 3s and then exit...")
-	time.Sleep(3 * time.Second)
+	if isPcapFile {
+		waitLoop.Wait()
+	} else {
+		<-ctx.Done()
+		log.Printf("sleep 3s and then exit...")
+		time.Sleep(3 * time.Second)
+	}
+
 	_ = senders.Close()
 	wg.Wait()
 }
