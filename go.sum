@@ -6,6 +6,8 @@ github.com/bingoohuang/easyjson v0.0.0-20230518060058-6bd4764f7688 h1:hNo20wQN7V
 github.com/bingoohuang/easyjson v0.0.0-20230518060058-6bd4764f7688/go.mod h1:pj5RZaMJwbOBOXIzDlvOY1kQBJ1unO/XA+gHt17QxBQ=
 github.com/bingoohuang/gg v0.0.0-20231130030601-72ab0f5ec3c8 h1:fRp0c4d5w49Umc/6+EDUapr+30ysylM2d1sHeo9aSoE=
 github.com/bingoohuang/gg v0.0.0-20231130030601-72ab0f5ec3c8/go.mod h1:zTGSz7/rokchKfFTqQWdUcSuJnspjmwzN89+95yn1eA=
+github.com/bingoohuang/godaemon v0.0.0-20231201035843-a5fc3c246aba h1:0Ze9JZtHmTOPO7RUpYSfsrgBqOZbgHjJ2WO6PtFQbdQ=
+github.com/bingoohuang/godaemon v0.0.0-20231201035843-a5fc3c246aba/go.mod h1:O04kATFq0lE/FF63BfL4BO4Bkyu1hlv8q19DGnJ8Jd0=
 github.com/bingoohuang/golog v0.0.0-20230906061256-349f3ea70be2 h1:qIZOI8VWMbu0cmqHAVDmlz+jzzOyRc/5VXoH3lMicNo=
 github.com/bingoohuang/golog v0.0.0-20230906061256-349f3ea70be2/go.mod h1:hQS09Lp2XzyzwtWx5o2iTISjv9ZtMY9oNzEVYbSfSfs=
 github.com/bingoohuang/jiami v0.0.0-20221123002830-d9d1f5f029b4 h1:+VmCTioMLui7PJgGD0AGOq44ls7GVYqxqv5NY1nncvY=
@@ -70,6 +72,8 @@ github.com/influxdata/tail v1.0.0 h1:RGikfjB/b5C/YP3p47YD48eE0WSsJyAVbBHNpoTHdX0
 github.com/influxdata/tail v1.0.0/go.mod h1:xTFF2SILpIYc5N+Srb0d5qpx7d+f733nBrbasb13DtQ=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
+github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 h1:iQTw/8FWTuc7uiaSepXwyf3o52HaUYcV+Tu66S3F5GA=
+github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0/go.mod h1:1NbS8ALrpOvjt0rHPNLyCIeMtbizbir8U//inJ+zuB8=
 github.com/klauspost/cpuid/v2 v2.0.9/go.mod h1:FInQzS24/EEf25PyTYn52gqo7WaD8xa0213Md/qVLRg=
 github.com/klauspost/cpuid/v2 v2.2.6 h1:ndNyv040zDGIDh8thGkXYjnFtiN02M1PVVF+JE/48xc=
 github.com/klauspost/cpuid/v2 v2.2.6/go.mod h1:Lcz8mBdAVJIBVzewtcLocK12l3Y+JytZYpaMropDUws=

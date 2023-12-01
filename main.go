@@ -20,6 +20,7 @@ import (
 	"github.com/bingoohuang/gg/pkg/rotate"
 	"github.com/bingoohuang/gg/pkg/sigx"
 	"github.com/bingoohuang/gg/pkg/v"
+	"github.com/bingoohuang/godaemon"
 	"github.com/bingoohuang/golog"
 	"github.com/bingoohuang/httpdump/handler"
 	"github.com/bingoohuang/httpdump/replay"
@@ -36,6 +37,10 @@ func main() {
 	app := &App{}
 	flagparse.Parse(app, flagparse.AutoLoadYaml("c", ""),
 		flagparse.ProcessInit(&initAssets))
+
+	if app.Daemonize {
+		godaemon.Daemonize(godaemon.WithDaemon(true), godaemon.WithLogFileName("httpdump.log"))
+	}
 
 	defer golog.Setup().OnExit()
 
@@ -69,10 +74,11 @@ var initAssets embed.FS
 
 // App Command line options.
 type App struct {
-	Config string `flag:"c" usage:"yaml config filepath"`
-	Init   bool   `usage:"init example httpdump.yml/ctl and then exit"`
-	Level  string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
-	Input  string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
+	Config    string `flag:"c" usage:"yaml config filepath"`
+	Init      bool   `usage:"init example httpdump.yml/ctl and then exit"`
+	Daemonize bool   `usage:"daemonize and then exit"`
+	Level     string `val:"all" usage:"Output level, url: only url, header: http headers, all: headers and text http body"`
+	Input     string `flag:"i" val:"any" usage:"Interface name or pcap file. If not set, If is any, capture all interface traffics"`
 
 	IP   string `usage:"Filter by ip, or ip range like 1.1.1.1-1.1.1.3, or multiple ip like 1.1.1.1,1.1.1.3, if either src or dst ip is matched, the packet will be processed"`
 	Port string `usage:"Filter by port, or port range like 8001-8003, or multiple ports like 8001,8003, if either source or target port is matched, the packet will be processed"`

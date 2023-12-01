@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/AndrewBurian/eventsource v2.1.0+incompatible
 	github.com/bingoohuang/gg v0.0.0-20231130030601-72ab0f5ec3c8
+	github.com/bingoohuang/godaemon v0.0.0-20231201035843-a5fc3c246aba
 	github.com/bingoohuang/golog v0.0.0-20230906061256-349f3ea70be2
 	github.com/bingoohuang/jj v0.0.0-20231201013430-d2abb381b275
 	github.com/bmatcuk/doublestar/v3 v3.0.0
@@ -39,6 +40,7 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/hpcloud/tail v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
