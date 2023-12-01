@@ -1,4 +1,4 @@
-.PHONY: test install git.commit git.branch default
+.PHONY: test install git.commit git.branch default vendor
 all: test install
 
 app=$(notdir $(shell pwd))
@@ -118,4 +118,18 @@ targz:
 	find . -name ".DS_Store" -delete
 	find . -type f -name '\.*' -print
 	cd .. && rm -f ${app}.tar.gz && tar czvf ${app}.tar.gz --exclude .git --exclude .idea ${app}
+
+
+vendor:
+	go mod download && go mod vendor
+
+# linux amd64 跨平台编译，libpcap包静态链接
+amd64-docker:
+	docker build -f build/Dockerfile  -t golang-new-builder-amd:v1.20.11 .
+amd64:
+	docker run -it --rm -v .:/code -w /code golang-new-builder-amd:v1.20.11 --build-cmd "make build-docker" -p "linux/amd64"
+build-docker:
+	${goinstall1}
+	cp `which httpdump` .
+	ldd httpdump
 

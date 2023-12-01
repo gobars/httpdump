@@ -28,6 +28,35 @@ Build httpdump requires libpcap-dev and cgo enabled.
 
 1. mac `make install1`
 2. linux `make install`
+3. docker 编译 linux amd64 
+   1. `make amd64-docker` 构建 docker 容器
+   2. `make vendor` 下载所有依赖包到 vendor 目录，省却容器内再次下载
+   3. `make amd64` 使用容器构建
+4. 从 pcap 源代码静态链接 pcap包
+   
+   ```sh
+   $ export PCAPV=1.10.14
+   $ wget http://www.tcpdump.org/release/libpcap-$PCAPV.tar.gz
+   $ tar -zxvf libpcap-$PCAPV.tar.gz
+   $ cd libpcap-$PCAPV
+   $ ./configure
+   $ make
+
+   $ pkg-config --cflags --libs libnl-3.0 libnl-genl-3.0
+   -I/usr/include/libnl3  -lnl-genl-3 -lnl-3
+
+   $ CGO_CFLAGS="-I/root/libpcap-1.10.4" CGO_LDFLAGS="-L/root/libpcap-1.10.4 -lnl-genl-3 -lnl-3" go build
+
+   $ ls -hl httpdump
+   -rwxr-xr-x 1 root root 22M Nov 30 22:56 httpdump
+   $ upx httpdump
+   $ ls -hl httpdump
+   -rwxr-xr-x 1 root root 13M Nov 30 22:56 httpdump
+   ```
+
+   参考
+   - [Golang交叉编译中使用libpcap链接库](https://aoyouer.com/posts/golang-cross-compile-link/)
+   - [make an option to compile libraries statically](https://github.com/google/gopacket/issues/424)
 
 ## Cheatsheet
 
