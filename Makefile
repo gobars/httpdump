@@ -126,10 +126,14 @@ vendor:
 # linux amd64 跨平台编译，libpcap包静态链接
 amd64-docker:
 	docker build -f build/Dockerfile  -t golang-new-builder-amd:v1.20.11 .
-amd64:
+amd64: git.commit
 	docker run -it --rm -v .:/code -w /code golang-new-builder-amd:v1.20.11 --build-cmd "make build-docker" -p "linux/amd64"
 build-docker:
 	${goinstall1}
+	ldd --version
 	cp `which httpdump` .
 	ldd httpdump
+	httpdump -v
+	httpdump -h
+
 

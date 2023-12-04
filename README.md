@@ -8,32 +8,19 @@ implementation, [refer to httpcap on pypi](https://pypi.org/project/httpcap/).
 
 ## Features support
 
-1. 2022-06-29 `-rr` to keep request and its relative response in order.
-
-## Install & Requirement
-
-Build httpdump requires libpcap-dev and cgo enabled.
-
-### libpcap
-
-1. for ubuntu/debian: `sudo apt install libpcap-dev`
-1. for centos/redhat/fedora: `sudo yum install libpcap-devel`
-1. for osx: Libpcap and header files should be available in macOS already.
-1. install libpcap from source
-   1. Fetch libpcap dependencies. Depending on your OS, instead of `apt` you will use `yum` or `rpm`, or `brew` on Mac. `sudo apt-get install flex bison -y`
-   1. download `gurl https://www.tcpdump.org/release/libpcap-1.10.1.tar.gz`
-   1. install `tar zxf libpcap-1.10.1.tar.gz && cd libpcap-1.10.1 && ./configure && make install`
+1. 2023-12-04 增加 docker 编译支持（基于 docker.elastic.co/beats-dev/golang-crossbuild)
+2. 2022-06-29 `-rr` to keep request and its relative response in order.
 
 ### Install
 
 1. mac `make install1`
 2. linux `make install`
-3. docker 编译 linux amd64 
-   1. `make amd64-docker` 构建 docker 容器
-   2. `make vendor` 下载所有依赖包到 vendor 目录，省却容器内再次下载
-   3. `make amd64` 使用容器构建
-4. 从 pcap 源代码静态链接 pcap包
-   
+3. docker 编译 linux amd64 （推荐）
+    1. `make amd64-docker` 构建 docker 容器
+    2. `make vendor` 下载所有依赖包到 vendor 目录，省却容器内再次下载
+    3. `make amd64` 使用容器构建
+4. 从 pcap 源代码静态链接 pcap包（在需要更高版本的 pcap 包时使用）
+
    ```sh
    $ export PCAPV=1.10.14
    $ wget http://www.tcpdump.org/release/libpcap-$PCAPV.tar.gz
@@ -55,12 +42,26 @@ Build httpdump requires libpcap-dev and cgo enabled.
    ```
 
    参考
-   - [Golang交叉编译中使用libpcap链接库](https://aoyouer.com/posts/golang-cross-compile-link/)
-   - [make an option to compile libraries statically](https://github.com/google/gopacket/issues/424)
+    - [Golang交叉编译中使用libpcap链接库](https://aoyouer.com/posts/golang-cross-compile-link/)
+    - [make an option to compile libraries statically](https://github.com/google/gopacket/issues/424)
+
+
+非 pcap 静态编译时需要安装 libpcap 包
+
+1. for ubuntu/debian: `sudo apt install libpcap-dev`
+2. for centos/redhat/fedora: `sudo yum install libpcap-devel`
+3. for osx: Libpcap and header files should be available in macOS already.
+4. install libpcap from source
+   1. Fetch libpcap dependencies. Depending on your OS, instead of `apt` you will use `yum` or `rpm`, or `brew` on
+      Mac. `sudo apt-get install flex bison -y`
+   2. download `gurl https://www.tcpdump.org/release/libpcap-1.10.1.tar.gz`
+   3. install `tar zxf libpcap-1.10.1.tar.gz && cd libpcap-1.10.1 && ./configure && make install`
+
 
 ## Cheatsheet
 
-1. 监听发往 192.168.1.1:80 的 HTTP POST 请求及响应，并且写到日志文件 `log-yyyy-MM-dd.http` 中，按 100m 滚动(例如 log-yyyy-MM-dd_00001.http)，同时往
+1. 监听发往 192.168.1.1:80 的 HTTP POST 请求及响应，并且写到日志文件 `log-yyyy-MM-dd.http` 中，按 100m 滚动(例如
+   log-yyyy-MM-dd_00001.http)，同时往
    192.168.1.2:80 复制。
 
 `nohup httpdump -bpf "tcp and ((dst host 192.168.1.1 and port 80) || (src host 192.168.1.1 and src port 80))" -method POST -output log-yyyy-MM-dd.http:100m -output 192.168.1.2:80 2>&1 >> httpdump.nohup &`
@@ -72,34 +73,44 @@ httpdump can read from pcap file, or capture data from network interfaces. Usage
 ```sh
 $ httpdump -h
 Usage of httpdump:
-  -bpf string	Customized bpf, if it is set, -ip -port will be suppressed
-  -c string	yaml config filepath
-  -chan uint	Channel size to buffer tcp packets (default 10240)
-  -curl	Output an equivalent curl command for each http request
-  -dump-body string	Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)
-  -f string	File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll
-  -fla9 string	Flags config file, a scaffold one will created when it does not exist.
-  -force	Force print unknown content-type http body even if it seems not to be text content
-  -host string	Filter by request host, using wildcard match(*, ?)
-  -i string	Interface name or pcap file. If not set, If is any, capture all interface traffics (default "any")
-  -idle duration	Idle time to remove connection if no package received (default 4m0s)
-  -init	init example httpdump.yml/ctl and then exit
-  -ip string	Filter by ip, if either src or dst ip is matched, the packet will be processed
-  -level string	Output level, url: only url, header: http headers, all: headers and text http body (default "all")
-  -method string	Filter by request method, multiple by comma
-  -mode string	std/fast (default "fast")
-  -out-chan uint	Output channel size to buffer tcp packets (default 40960)
-  -output value	File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode
- Or Relay http address, eg http://127.0.0.1:5002
-  -port uint	Filter by port, if either source or target port is matched, the packet will be processed
-  -pprof string	pprof address to listen on, not activate pprof if empty, eg. :6060
-  -r	Print response or not
-  -status value	Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400
-  -uri string	Filter by request url path, using wildcard match(*, ?)
-  -v	Print version info and exit
-  -verbose string	Verbose flag, available req/rsp/all for http replay dump
-  -web	Start web server for HTTP requests and responses event
-  -web-port int	Web server port if web is enable
+  -bpf string   Customized bpf, if it is set, -ip -port will be suppressed, e.g. tcp and ((dst host 1.2.3.4 and port 80) || (src host 1.2.3.4 and src port 80))
+  -c string     yaml config filepath
+  -chan uint    Channel size to buffer tcp packets (default 10240)
+  -curl Output an equivalent curl command for each http request
+  -daemonize    daemonize and then exit
+  -debug        Enable debugging.
+  -dump-body string     Prefix file of dump http request/response body, empty for no dump, like solr, solr:10 (max 10)
+  -eof  Output EOF connection info or not.
+  -f string     File of http request to parse, glob pattern like data/*.gor, or path like data/, suffix :tail to tail files, suffix :poll to set the tail watch method to poll
+  -fla9 string  Flags config file, a scaffold one will created when it does not exist.
+  -force        Force print unknown content-type http body even if it seems not to be text content
+  -host string  Filter by request host, using wildcard match(*, ?)
+  -i string     Interface name or pcap file. If not set, If is any, capture all interface traffics (default "any")
+  -idle duration        Idle time to remove connection if no package received (default 4m0s)
+  -init init example httpdump.yml/ctl and then exit
+  -ip string    Filter by ip, or ip range like 1.1.1.1-1.1.1.3, or multiple ip like 1.1.1.1,1.1.1.3, if either src or dst ip is matched, the packet will be processed
+  -level string Output level, url: only url, header: http headers, all: headers and text http body (default "all")
+  -method string        Filter by request method, multiple by comma
+  -mode string  std/fast (default "fast")
+  -n value      Max Requests and Responses captured, and then exits
+  -out-chan uint        Output channel size to buffer tcp packets (default 40960)
+  -output value 
+        File output, like dump-yyyy-MM-dd-HH-mm.http, suffix like :32m for max size, suffix :append for append mode
+        Or Relay http address, eg http://127.0.0.1:5002
+        Or any of stdout/stderr/stdout:log
+  -port string  Filter by port, or port range like 8001-8003, or multiple ports like 8001,8003, if either source or target port is matched, the packet will be processed
+  -pprof string pprof address to listen on, not activate pprof if empty, eg. :6060
+  -r value      -r: print response, -rr: print response after relative request 
+  -rate float   rate limit output per second
+  -replay-ratio float   replay ratio, e.g. 2 to double replay, 0.1 to replay only 10% requests (default 1)
+  -src-ratio float      source ratio, e.g. 0.1 should be (0,1] (default 1)
+  -status value Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400
+  -uri string   Filter by request url path, using wildcard match(*, ?)
+  -v    Print version info and exit
+  -verbose string       Verbose flag, available req/rsp/all for http replay dump
+  -web  Start web server for HTTP requests and responses event
+  -web-context string   Web server context path if web is enable
+  -web-port int Web server port if web is enable
 ```
 
 ## Samples
@@ -181,11 +192,12 @@ httpdump -ip 101.201.170.152 -port 80 # filter by ip and port
 
 ## 部署
 
-1. 查看版本：`./httpdump -v` 最新版本是：httpdump v1.2.7 2021-06-21 14:13:46
-2. 生成启停命令文件 和 样例 yml 配置文件  `./httpdump -init`
+1. 查看版本：`httpdump -v` 最新版本是：httpdump v1.2.7 2021-06-21 14:13:46
+2. 生成样例 yml 配置文件  `httpdump -init`
 3. 编辑 yml 配置文件 `httpdump.yml`，调整取值
-4. ./ctl help 查看帮助， `./ctl start` 启动
-5. 限制CPU在2个核上共占20% 启动 `LIMIT_CPU=20 LIMIT_CORES=2 ./ctl start`，（需要linux安装了cgroups包)
+4. 启动 `httpdump -c httpdump.yml`，测试观察是否正常运行（可能参数配置不正确，无法抓到正常的包）
+5. 修改 `httpdump.yml` 中的配置项为 `daemonize: true`，重新启动  `httpdump -c httpdump.yml`，进入后台运行状态
+    - 日志文件在当前目录下的 httpdump.log 文件中
 
 httpdump.yml 配置示例:
 
@@ -211,7 +223,8 @@ output:
 
 ## 采集 CPU profile
 
-1. 在工作目录下：`touch jj.cpu; kill -USR1 {pid}`，开始采集，等待 5-10 分钟，再次执行相同命令，结束采集，可以在当前目录下看到生成的 cpu.profile`文件
+1. 在工作目录下：`touch jj.cpu; kill -USR1 {pid}`，开始采集，等待 5-10 分钟，再次执行相同命令，结束采集，可以在当前目录下看到生成的
+   cpu.profile`文件
 2. 下载文件到本地，使用go工具链查看，例如： `go tool pprof -http :9402 cpu.profile`
 
 ## Web UI
@@ -234,9 +247,9 @@ $ sudo PRINT_JSON=Y httpdump -i lo0 -port 5003 -r -level all
 
 ## Environment Variables
 
-| \#  | Name          | Default | Meaning               | Changing                |
-|-----|---------------|---------|-----------------------|-------------------------|
-| 1   | MAX_BODY_SIZE | 4K      | Max HTTP body to read | export MAX_BODY_SIZE=4M |
+| \# | Name          | Default | Meaning               | Changing                |
+|----|---------------|---------|-----------------------|-------------------------|
+| 1  | MAX_BODY_SIZE | 4K      | Max HTTP body to read | export MAX_BODY_SIZE=4M |
 
 ## `application/x-www-form-urlencoded` supported
 
@@ -312,7 +325,7 @@ Content-Length: 167
 ## bpf examples
 
 1. Drop packets to or from any address in the 10.21.0.0/16 subnet:
-    `not (net 10.21.0.0/16)`
+   `not (net 10.21.0.0/16)`
 2. Drop packets that have both source and destination addresses in the 10.21.0.0/16 subnet:
    `not (src net 10.21.0.0/16 and dst net 10.21.0.0/16)`
 3. Drop packets that are from 10.21.1.2 or are headed to 10.21.1.3.
@@ -334,4 +347,5 @@ Content-Length: 167
 
 ## resources
 
-1. [goreplay](https://github.com/buger/goreplay) a network monitoring tool which can record your live traffic and use it for shadowing, load testing, monitoring and detailed analysis.
+1. [goreplay](https://github.com/buger/goreplay) a network monitoring tool which can record your live traffic and use it
+   for shadowing, load testing, monitoring and detailed analysis.

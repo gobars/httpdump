@@ -4,6 +4,9 @@ level: all
 # input  string flag i  val any   usage: Interface name or pcap file. If not set, If is any, capture all interface traffics
 input: any
 
+# 后台运行
+daemonize: false
+
 # 注意：ip 和 port 同时配置时，相当于设置了 bpf: tcp and ((dst host {ip} and dst port {port}) or (src host {ip} and src port {port}))
 # ip   Filter by ip, or ip range like 1.1.1.1-1.1.1.3, or multiple ip like 1.1.1.1,1.1.1.3, if either src or dst ip is matched, the packet will be processed
 ip: ""
