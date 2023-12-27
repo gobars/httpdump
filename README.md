@@ -45,18 +45,16 @@ implementation, [refer to httpcap on pypi](https://pypi.org/project/httpcap/).
     - [Golang交叉编译中使用libpcap链接库](https://aoyouer.com/posts/golang-cross-compile-link/)
     - [make an option to compile libraries statically](https://github.com/google/gopacket/issues/424)
 
-
 非 pcap 静态编译时需要安装 libpcap 包
 
 1. for ubuntu/debian: `sudo apt install libpcap-dev`
 2. for centos/redhat/fedora: `sudo yum install libpcap-devel`
 3. for osx: Libpcap and header files should be available in macOS already.
 4. install libpcap from source
-   1. Fetch libpcap dependencies. Depending on your OS, instead of `apt` you will use `yum` or `rpm`, or `brew` on
-      Mac. `sudo apt-get install flex bison -y`
-   2. download `gurl https://www.tcpdump.org/release/libpcap-1.10.1.tar.gz`
-   3. install `tar zxf libpcap-1.10.1.tar.gz && cd libpcap-1.10.1 && ./configure && make install`
-
+    1. Fetch libpcap dependencies. Depending on your OS, instead of `apt` you will use `yum` or `rpm`, or `brew` on
+       Mac. `sudo apt-get install flex bison -y`
+    2. download `gurl https://www.tcpdump.org/release/libpcap-1.10.1.tar.gz`
+    3. install `tar zxf libpcap-1.10.1.tar.gz && cd libpcap-1.10.1 && ./configure && make install`
 
 ## Cheatsheet
 
@@ -344,6 +342,119 @@ Content-Length: 167
    `not (port 53) and not (src host 10.21.1.2 or dst host 10.21.1.3)`
 10. Drop any traffic using IP proto 50 or port 53 or any traffic from net 10.21.0.0/16 destined to net 10.21.0.0/16
     `not (ip proto 50 or port 53) or not (src net 10.21.0.0/16 and dst net 10.21.0.0/16)`
+
+## 为 centos 6.7 静态打包
+
+1. `mkdir bento_centos_6.7_pcap_static && cd bento_centos_6.7_pcap_static && vagrant init bento/centos-6.7` [bento/centos-6.7](https://app.vagrantup.com/bento/boxes/centos-6.7)
+2. 更换镜像， 参见 [CentOS 6停止更新后，如何更换镜像](https://developer.aliyun.com/article/1213379)
+
+   具体的操作步骤如下：
+   1. 关闭 fastestmirror `vi /etc/yum/pluginconf.d/fastestmirror.conf` 修改参数  `enable=0`
+   2. 先备份，再将原来的源改名 `mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak`、
+   3. 更换源
+   
+   ```sh
+   # 替换为官方Vault源
+   wget -O /etc/yum.repos.d/CentOS-Base.repo https://static.lty.fun/%E5%85%B6%E4%BB%96%E8%B5%84%E6%BA%90/SourcesList/Centos-6-Vault-Official.repo
+   # 替换为阿里云Vault镜像
+   wget -O /etc/yum.repos.d/CentOS-Base.repo https://static.lty.fun/%E5%85%B6%E4%BB%96%E8%B5%84%E6%BA%90/SourcesList/Centos-6-Vault-Aliyun.repo
+   ```
+
+3. 参见 [Installing C++ 4.8.5 on CentOS 6.7](https://jotmynotes.blogspot.com/2016/04/installing-c-485-on-centos-67.html)
+   ，安装 c++ 4.8.5 (否则无法 cgo)
+
+    1. Install gcc compiler `sudo yum install gcc-c++`
+    2. Install glibc `sudo yum install -y gcc texinfo-tex flex zip libgcc.i686 glibc-devel.i686`
+    3. Download gcc source code `wget ftp://ftp.gnu.org/gnu/gcc/gcc-4.8.5/gcc-4.8.5.tar.gz`
+    4. Download mpc, mpfr, gmp package `tar zxf gcc-4.8.5.tar.gz && cd gcc-4.8.5 && ./contrib/download_prerequisites`
+    5. Compile gcc `mkdir gcc-build-4.8.5 && cd gcc-build-4.8.5 && ../configure --prefix=/usr && make` (约2小时)
+    6. Install `make install`
+    7. [Check your gcc versions](#check-your-gcc-versions)
+
+4. 安装 pcap 包 `wget http://www.tcpdump.org/release/libpcap-1.10.14.tar.gz && tar -zxf libpcap-1.10.14.tar.gz && cd libpcap-1.10.14 && ./configure`
+5. 静态编译 httpdump: 
+   - 先在本机上 `make vendor && make git.commit`
+   - 然后在 centos 6.7 上 `CGO_CFLAGS="-I/home/vagrant/libpcap-1.10.4" CGO_LDFLAGS="-L/home/vagrant/libpcap-1.10.4 -lpcap" go install -mod vendor -trimpath -ldflags='-s -w -X github.com/bingoohuang/gg/pkg/v.BuildTime=2023-12-26T13:59:59+0000 -X github.com/bingoohuang/gg/pkg/v.AppVersion=1.0.0 -X github.com/bingoohuang/gg/pkg/v.GitCommit=master-48e424a@2023-12-04T09:27:44+08:00 -X github.com/bingoohuang/gg/pkg/v.GoVersion=go1.21.5_linux/amd64' ./...`
+6. 此 vagrant 镜像，已经被我导出为单独一个 box, 以备后续复用: `/Volumes/e1t/vargrant/bento_centos_6.7_pcap_static.box`， 大小 2.88G
+
+```sh
+[vagrant@10 ~]$ go version
+go version go1.21.5 linux/amd64
+
+[vagrant@10 ~]$ g++ --version
+g++ (GCC) 4.8.5
+Copyright (C) 2015 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+[vagrant@10 ~]$ ldd ~/go/bin/httpdump
+	linux-vdso.so.1 =>  (0x00007ffd227e9000)
+	libresolv.so.2 => /lib64/libresolv.so.2 (0x00007f5b9c78c000)
+	libpthread.so.0 => /lib64/libpthread.so.0 (0x00007f5b9c56f000)
+	libc.so.6 => /lib64/libc.so.6 (0x00007f5b9c1da000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007f5b9c9ae000)
+
+[vagrant@10 ~]$ httpdump -v
+version: 1.0.0
+build  : 2023-12-26T13:59:59+0000
+git    : master-48e424a@2023-12-04T09:27:44+08:00
+go     : go1.21.5_linux/amd64
+
+[vagrant@10 ~]$ cat /etc/centos-release
+CentOS release 6.7 (Final)
+
+[vagrant@10 ~]$ uname -a
+Linux 10.0.2.15 2.6.32-573.el6.x86_64 #1 SMP Thu Jul 23 15:44:03 UTC 2015 x86_64 x86_64 x86_64 GNU/Linux
+
+[vagrant@10 ~]$ ldd --version
+ldd (GNU libc) 2.12
+Copyright (C) 2010 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+Written by Roland McGrath and Ulrich Drepper.
+```
+
+### Check your gcc versions
+
+```sh
+[vagrant@localhost ~]$ gcc --version
+gcc (GCC) 4.8.5
+Copyright (C) 2015 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+[vagrant@localhost ~]$ g++ --version
+g++ (GCC) 4.8.5
+Copyright (C) 2015 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+[vagrant@localhost ~]$ which gcc
+/usr/bin/gcc
+[vagrant@localhost ~]$ which g++
+/usr/bin/g++
+
+# Test the compilation:
+[vagrant@localhost ~]$ cat >test.cc <<EOF
+#include <iostream>
+int main() {
+    std::cout << "Hello, World!" << std::endl;
+    return 0;
+}
+EOF
+    
+[vagrant@localhost ~]$ g++ -o test.exe -g -Wall test.cc
+[vagrant@localhost ~]$ ./test.exe
+Hello, World!
+    
+# Check rpm installed
+# Because you are compiling gcc on your own, yum or rpm are unware of the new gcc version.
+[vagrant@localhost ~]$ rpm -qa | grep gcc
+libgcc-4.4.7-23.el6.i686
+libgcc-4.4.7-23.el6.x86_64
+gcc-c++-4.4.7-23.el6.x86_64
+gcc-4.4.7-23.el6.x86_64
+```
 
 ## resources
 
