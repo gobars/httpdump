@@ -349,10 +349,10 @@ Content-Length: 167
 2. 更换镜像， 参见 [CentOS 6停止更新后，如何更换镜像](https://developer.aliyun.com/article/1213379)
 
    具体的操作步骤如下：
-   1. 关闭 fastestmirror `vi /etc/yum/pluginconf.d/fastestmirror.conf` 修改参数  `enable=0`
-   2. 先备份，再将原来的源改名 `mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak`、
-   3. 更换源
-   
+    1. 关闭 fastestmirror `vi /etc/yum/pluginconf.d/fastestmirror.conf` 修改参数  `enable=0`
+    2. 先备份，再将原来的源改名 `mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak`、
+    3. 更换源
+
    ```sh
    # 替换为官方Vault源
    wget -O /etc/yum.repos.d/CentOS-Base.repo https://static.lty.fun/%E5%85%B6%E4%BB%96%E8%B5%84%E6%BA%90/SourcesList/Centos-6-Vault-Official.repo
@@ -371,11 +371,16 @@ Content-Length: 167
     6. Install `make install`
     7. [Check your gcc versions](#check-your-gcc-versions)
 
-4. 安装 pcap 包 `wget http://www.tcpdump.org/release/libpcap-1.10.14.tar.gz && tar -zxf libpcap-1.10.14.tar.gz && cd libpcap-1.10.14 && ./configure`
-5. 静态编译 httpdump: 
-   - 先在本机上 `make vendor && make git.commit`
-   - 然后在 centos 6.7 上 `CGO_CFLAGS="-I/home/vagrant/libpcap-1.10.4" CGO_LDFLAGS="-L/home/vagrant/libpcap-1.10.4 -lpcap" go install -mod vendor -trimpath -ldflags='-s -w -X github.com/bingoohuang/gg/pkg/v.BuildTime=2023-12-26T13:59:59+0000 -X github.com/bingoohuang/gg/pkg/v.AppVersion=1.0.0 -X github.com/bingoohuang/gg/pkg/v.GitCommit=master-48e424a@2023-12-04T09:27:44+08:00 -X github.com/bingoohuang/gg/pkg/v.GoVersion=go1.21.5_linux/amd64' ./...`
-6. 此 vagrant 镜像，已经被我导出为单独一个 box, 以备后续复用: `/Volumes/e1t/vargrant/bento_centos_6.7_pcap_static.box`， 大小 2.88G
+4. 安装 pcap 包, [Golang交叉编译中使用libpcap链接库](https://aoyouer.com/posts/golang-cross-compile-link/)
+    - `wget https://www.tcpdump.org/release/libpcap-1.10.4.tar.gz`
+    - `tar -zxf libpcap-1.10.14.tar.gz && cd libpcap-1.10.14`
+    - `/configure`
+5. 静态编译 httpdump:
+    - 先在本机上 `make vendor && make git.commit`
+    - 然后在 centos 6.7
+      上 `CGO_CFLAGS="-I/home/vagrant/libpcap-1.10.4" CGO_LDFLAGS="-L/home/vagrant/libpcap-1.10.4 -lpcap" go install -mod vendor -trimpath -ldflags='-s -w -X github.com/bingoohuang/gg/pkg/v.BuildTime=2023-12-26T13:59:59+0000 -X github.com/bingoohuang/gg/pkg/v.AppVersion=1.0.0 -X github.com/bingoohuang/gg/pkg/v.GitCommit=master-48e424a@2023-12-04T09:27:44+08:00 -X github.com/bingoohuang/gg/pkg/v.GoVersion=go1.21.5_linux/amd64' ./...`
+6. 此 vagrant 镜像，已经被我导出为单独一个 box, 以备后续复用: `/Volumes/e1t/vargrant/bento_centos_6.7_pcap_static.box`，
+   大小 2.88G
 
 ```sh
 [vagrant@10 ~]$ go version
