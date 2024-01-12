@@ -67,11 +67,11 @@ func printPacketInfo(packet gopacket.Packet) {
 		// SrcPort, DstPort, Seq, Ack, DataOffset, Window, Checksum, Urgent
 		// Bool flags: FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS
 		applicationLayer := packet.ApplicationLayer()
-		if applicationLayer == nil {
-			return
+		var payload []byte
+		if applicationLayer != nil {
+			payload = applicationLayer.Payload()
 		}
 
-		payload := applicationLayer.Payload()
 		printPacket(ethernetPacket, ip, tcp, payload)
 	}
 }
@@ -87,7 +87,9 @@ func printPacket(packet *layers.Ethernet, ip *layers.IPv4, tcp *layers.TCP, payl
 		ip.Protocol, ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort, tcp.Seq,
 		tcpFlags(tcp), len(payload))
 
-	fmt.Printf("%s", payload)
+	if len(payload) > 0 {
+		fmt.Printf("%s", payload)
+	}
 }
 
 func tcpFlags(tcp *layers.TCP) string {
