@@ -14,6 +14,7 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
+// 打印 pcap 中的 TCP 包, pcap 文件采集示例: `tcpdump -i any -s0 port 9200 -C1 -w 9200.pcap`
 func main() {
 	// Open file instead of device
 	handle, err := pcap.OpenOffline(os.Args[1])
@@ -27,64 +28,44 @@ func main() {
 		log.Fatal(err)
 	}
 
-	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-	for packet := range packetSource.Packets() {
+	packetSrc := gopacket.NewPacketSource(handle, handle.LinkType())
+	for packet := range packetSrc.Packets() {
 		printPacketInfo(packet)
 	}
 }
 
-func printPacketInfo(packet gopacket.Packet) {
-	// Let's see if the packet is an ethernet packet
-	ethernetLayer := packet.Layer(layers.LayerTypeEthernet)
-	if ethernetLayer == nil {
+func printPacketInfo(p gopacket.Packet) {
+	// only assembly tcp/ip packets
+	n, t := p.NetworkLayer(), p.TransportLayer()
+	if n == nil || t == nil || t.LayerType() != layers.LayerTypeTCP {
 		return
 	}
 
-	ethernetPacket, _ := ethernetLayer.(*layers.Ethernet)
+	// IP layer variables:
+	// Version (Either 4 or 6)
+	// IHL (IP Header Length in 32-bit words)
+	// TOS, Length, Id, Flags, FragOffset, TTL, Protocol (TCP?),
+	// Checksum, SrcIP, DstIP
 
-	if ethernetPacket.EthernetType.String() == "IPv4" {
-		ipLayer := packet.Layer(layers.LayerTypeIPv4)
-		if ipLayer == nil {
-			return
-		}
+	// TCP layer variables:
+	// SrcPort, DstPort, Seq, Ack, DataOffset, Window, Checksum, Urgent
+	// Bool flags: FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS
 
-		ip, _ := ipLayer.(*layers.IPv4)
-
-		// IP layer variables:
-		// Version (Either 4 or 6)
-		// IHL (IP Header Length in 32-bit words)
-		// TOS, Length, Id, Flags, FragOffset, TTL, Protocol (TCP?),
-		// Checksum, SrcIP, DstIP
-
-		tcpLayer := packet.Layer(layers.LayerTypeTCP)
-		if tcpLayer == nil {
-			return
-		}
-
-		tcp, _ := tcpLayer.(*layers.TCP)
-
-		// TCP layer variables:
-		// SrcPort, DstPort, Seq, Ack, DataOffset, Window, Checksum, Urgent
-		// Bool flags: FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS
-		applicationLayer := packet.ApplicationLayer()
-		var payload []byte
-		if applicationLayer != nil {
-			payload = applicationLayer.Payload()
-		}
-
-		printPacket(ethernetPacket, ip, tcp, payload)
+	var payload []byte
+	if l := p.ApplicationLayer(); l != nil {
+		payload = l.Payload()
 	}
+
+	printPacket(n.NetworkFlow(), t.(*layers.TCP), payload)
 }
 
 var seq = 0
 
-func printPacket(packet *layers.Ethernet, ip *layers.IPv4, tcp *layers.TCP, payload []byte) {
+func printPacket(flow gopacket.Flow, tcp *layers.TCP, payload []byte) {
 	seq++
-	// Ethernet type is typically IPv4 but could be ARP or other
-	fmt.Printf("\n\n-----#%d MAC: %s->%s Ethernet: %s/%s DIR: %s:%d->%s:%d Seq: %d Flags: %s Len: %d -----\n\n",
+	fmt.Printf("\n\n-----#%d DIR: %s:%d->%s:%d Seq: %d Flags: %s Len: %d -----\n\n",
 		seq,
-		packet.SrcMAC, packet.DstMAC, packet.EthernetType,
-		ip.Protocol, ip.SrcIP, tcp.SrcPort, ip.DstIP, tcp.DstPort, tcp.Seq,
+		flow.Src(), tcp.SrcPort, flow.Dst(), tcp.DstPort, tcp.Seq,
 		tcpFlags(tcp), len(payload))
 
 	if len(payload) > 0 {
@@ -106,25 +87,27 @@ func tcpFlags(tcp *layers.TCP) string {
 	}, " ")
 }
 
-func Join(strs []string, sep string) string {
-	joined := ""
+func Join(strs []string, sep string) (joined string) {
 	for _, s := range strs {
-		if s == "" {
-			continue
-		}
-		if joined == "" {
-			joined = s
-		} else {
-			joined += sep + s
+		if s != "" {
+			joined += If(joined != "", sep) + s
 		}
 	}
 
 	return joined
 }
 
-func If(b bool, s string) string {
+func Iff[T any](b bool, s1, s2 T) T {
+	if b {
+		return s1
+	}
+	return s2
+}
+
+func If[T any](b bool, s T) T {
 	if b {
 		return s
 	}
-	return ""
+	var t T
+	return t
 }
