@@ -15,7 +15,7 @@ gitInfo = $(gitBranch)-$(gitCommit)
 # https://stackoverflow.com/a/47510909
 pkg := github.com/bingoohuang/gg/pkg/v
 
-extldflags := -extldflags -static
+extldflags := -linkmode external -extldflags -static
 # https://ms2008.github.io/2018/10/08/golang-build-version/
 # https://github.com/kubermatic/kubeone/blob/master/Makefile
 flags1 = -s -w -X $(pkg).BuildTime=$(buildTime) -X $(pkg).AppVersion=$(appVersion) -X $(pkg).GitCommit=$(gitInfo) -X $(pkg).GoVersion=$(goVersion)
@@ -125,15 +125,16 @@ vendor:
 
 # linux amd64 跨平台编译，libpcap包静态链接
 amd64-docker:
-	docker build -f build/Dockerfile  -t golang-new-builder-amd:v1.20.11 .
+	docker build -f build/Dockerfile  -t golang-new-builder-amd:v1.22.3 .
 amd64: git.commit
-	docker run -it --rm -v .:/code -w /code golang-new-builder-amd:v1.20.11 --build-cmd "make build-docker" -p "linux/amd64"
+	docker run -it --rm -v .:/code -w /code golang-new-builder-amd:v1.22.3 --build-cmd "make build-docker" -p "linux/amd64"
 build-docker:
 	${goinstall1}
-	ldd --version
 	cp `which httpdump` .
-	ldd httpdump
-	httpdump -v
-	httpdump -h
+	ldd --version
+	-ldd ./httpdump
+	ls -hl ./httpdump
+	./httpdump -v
+	./httpdump -h
 
 
